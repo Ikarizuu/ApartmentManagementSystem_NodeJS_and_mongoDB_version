@@ -1,0 +1,40 @@
+<%- include('../partials/header') %>
+<div class="flex h-screen bg-slate-50 overflow-hidden">
+    <%- include('../partials/adminSidebar') %>
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 relative z-50">
+            <h2 class="text-2xl font-bold text-[#1e293b] m-0 tracking-tight">Payment Operations Ledger</h2>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-7xl mx-auto space-y-6">
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="p-5 border-b border-slate-100 bg-slate-50">
+                        <h3 class="text-sm font-bold text-slate-800 m-0">Settlement Verification Processing</h3>
+                    </div>
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead class="bg-slate-100/75 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <tr>
+                                <th class="py-3 px-6">Tenant</th>
+                                <th class="py-3 px-6">Assigned Space</th>
+                                <th class="py-3 px-6">Contract Cost Rent</th>
+                                <th class="py-3 px-6">Lease Term Period</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <% payments.forEach(function(p) { %>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-4 px-6 font-semibold text-slate-800"><%= p.user.firstName %> <%= p.user.lastName %></td>
+                                    <td class="py-4 px-6 font-bold text-indigo-600">Room <%= p.roomName %></td>
+                                    <td class="py-4 px-6 text-emerald-600 font-extrabold">₱<%= p.monthlyRent.toLocaleString() %></td>
+                                    <td class="py-4 px-6 text-slate-500 font-mono"><%= p.monthsOfRent %> Months Allotted</td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+<%- include('../partials/footer') %>

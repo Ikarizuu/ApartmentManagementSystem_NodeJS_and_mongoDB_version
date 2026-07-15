@@ -1,0 +1,71 @@
+<%- include('partials/header') %>
+
+<div class="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
+    <!--Left Splash Branding Track Matrix Segment Panel Box-->
+    <div class="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden bg-[#3b4276]">
+        <div class="relative z-20 flex flex-col items-center justify-center">
+            <h1 class="ams-logo text-8xl italic font-bold tracking-wider mb-2 text-white border-0 bg-transparent uppercase">
+                AMS
+            </h1>
+            <div class="w-48 border-t border-white/20 my-2"></div>
+            <p class="text-xs font-light uppercase tracking-widest text-white/60 m-0">
+                Apartment Management System
+            </p>
+        </div>
+    </div>
+
+    <!--Right Secure Action Input Fields Row Form Workspace-->
+    <div class="col-span-1 md:col-span-6 flex flex-col justify-center items-center p-8 sm:p-16 bg-white">
+        <div class="w-full max-w-md flex flex-col items-center">
+            <div class="w-full space-y-6">
+                <h2 class="text-3xl font-extrabold text-center mb-8 border-0 text-[#3b4276]">
+                    Login
+                </h2>
+
+                <!--Error Handler Notification Alert Feed Row Container Context-->
+                <% if (typeof message !== 'undefined' && message) { %>
+                    <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-semibold text-center">
+                        <%= message %>
+                    </div>
+                <% } %>
+
+                <form class="space-y-5" action="/login" method="POST">
+                    <div>
+                        <input
+                            type="email"
+                            name="email_address"
+                            placeholder="Email Address"
+                            required
+                            class="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base text-slate-800"
+                        />
+                    </div>
+
+                    <div>
+                        <input
+                            type="password"
+                            name="password"
+                            placeholder="Password"
+                            required
+                            class="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base text-slate-800"
+                        />
+                    </div>
+
+                    <button type="submit" class="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium py-3.5 rounded-xl shadow-lg transition-all mt-2 border-0 cursor-pointer text-base">
+                        Login
+                    </button>
+                </form>
+
+                <div class="text-center pt-4">
+                    <p class="text-sm text-slate-500 m-0">
+                        Don't have an Account?{' '}
+                        <a href="/register" class="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                            Register
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

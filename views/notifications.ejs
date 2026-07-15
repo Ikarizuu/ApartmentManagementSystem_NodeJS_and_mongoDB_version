@@ -1,0 +1,41 @@
+<%- include('partials/header') %>
+<%- include('partials/topbar') %>
+
+<div class="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
+    <div class="w-full max-w-4xl space-y-6 text-left">
+        <div>
+            <h1 class="text-4xl font-sans font-extrabold m-0 tracking-tight text-[#3b4276]">
+                Notifications
+            </h1>
+            <p class="text-slate-500 text-sm mt-1 m-0">
+                Stay up to date with your core apartment notifications.
+            </p>
+        </div>
+
+        <!--Notification Feeds Collection Mapping Node Row Track Blocks-->
+        <div class="space-y-3">
+            <% if (announcements.length === 0) { %>
+                <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
+                    <p class="text-slate-400 text-sm italic m-0">You are completely up to date! No active notifications found.</p>
+                </div>
+              <% } else { %>
+                <% announcements.forEach(function(item) { %>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex gap-4 items-start">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-500 border border-blue-100 shadow-sm">
+                            <i class="fa-solid fa-bullhorn"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <h4 class="text-sm font-bold text-slate-800 m-0"><%= item.title %></h4>
+                                <span class="px-2 py-0.5 rounded text-[9px] font-extrabold bg-blue-100 text-blue-700 uppercase"><%= item.tag %></span>
+                            </div>
+                            <p class="text-xs text-slate-500 m-0 leading-relaxed"><%= item.body %></p>
+                        </div>
+                    </div>
+                <% }); %>
+            <% } %>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

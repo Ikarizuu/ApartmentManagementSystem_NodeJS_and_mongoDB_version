@@ -1,0 +1,53 @@
+<%- include('partials/header') %>
+<%- include('partials/topbar') %>
+
+<div class="w-full min-h-[calc(100vh-76px)] relative flex items-center justify-start overflow-hidden box-border">
+    
+    <!--Full Bleed Background Asset-->
+    <div class="absolute inset-0 z-0">
+        <div class="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-transparent z-10"></div>
+        <div class="w-full h-full bg-[#3b4276] animate-fade-in flex items-center justify-center text-white/10 text-9xl font-bold select-none">AMS</div>
+    </div>
+
+    <!--Floating Content Panel Layout Container-->
+    <div class="w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">
+        <div class="max-w-2xl space-y-6 bg-slate-900/40 backdrop-blur-md p-8 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
+            
+            <span class="text-[10px] tracking-widest uppercase font-bold px-3 py-1.5 rounded-lg bg-[#6366f1] text-white inline-block select-none shadow-sm">
+                Premium Rental Property
+            </span>
+            
+            <div className="space-y-2">
+                <h1 class="text-4xl md:text-5xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">
+                    <% if (user) { %>
+                        Welcome Back, <%= user.first_name %>
+                    <% } else { %>
+                        Renting, Made Easy
+                    <% } %>
+                </h1>
+                <p class="text-indigo-200/90 font-semibold text-lg m-0">
+                    Maguyam Silang, Cavite
+                </p>
+            </div>
+
+            <p class="text-slate-300 text-sm md:text-base m-0 leading-relaxed font-medium">
+                Convenient housing situated perfectly for your daily commute. Enjoy restful accommodations, reliable utilities, and accessible support services designed around your schedule.
+            </p>
+
+            <div class="pt-4 flex flex-wrap gap-4 items-center justify-between border-t border-white/10 mt-2">
+                <div class="flex space-x-4 text-xs font-semibold text-white/80">
+                    <span>• 14 Total Units</span>
+                    <span class="text-emerald-400">• Available Rooms</span>
+                </div>
+                
+                <a href="/preview" class="bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-xs transition-all duration-200 shadow-lg border-0 cursor-pointer flex items-center space-x-2 no-underline">
+                    <span>Explore Available Rooms</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

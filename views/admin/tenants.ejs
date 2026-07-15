@@ -1,0 +1,42 @@
+<%- include('../partials/header') %>
+<div class="flex h-screen bg-slate-50 overflow-hidden">
+    <%- include('../partials/adminSidebar') %>
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 relative z-50">
+            <h2 class="text-2xl font-bold text-[#1e293b] m-0 tracking-tight">Tenant Master Directory</h2>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-7xl mx-auto space-y-6">
+                <!--Master Registry Audit Log Data Rows List Table Block Frame Layout Container-->
+                <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="px-6 py-4">Tenant Account Name</th>
+                                <th class="px-6 py-4">Allotted Unit</th>
+                                <th class="px-6 py-4">Contact Phone Key</th>
+                                <th class="px-6 py-4">Lease State Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <% tenants.forEach(function(t) { %>
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-6 py-4 font-medium text-slate-800"><%= t.user.firstName %> <%= t.user.lastName %></td>
+                                    <td class="px-6 py-4 font-bold text-indigo-600">Room <%= t.roomName %></td>
+                                    <td class="px-6 py-4 text-slate-500 font-mono"><%= t.contactNo %></td>
+                                    <td class="px-6 py-4">
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                                            ● <%= t.status %>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+<%- include('../partials/footer') %>

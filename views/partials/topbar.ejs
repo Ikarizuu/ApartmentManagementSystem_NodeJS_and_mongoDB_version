@@ -1,0 +1,40 @@
+<nav class="w-full bg-[#3b4276] px-6 md:px-12 py-4 shadow-md sticky top-0 z-50 select-none box-border">
+    <div class="w-full flex justify-between items-center h-[44px]">
+        <!--Logo Identity-->
+        <div class="flex items-center space-x-8">
+            <a href="/home" class="ams-logo text-white text-3xl italic font-bold tracking-wider hover:scale-105 transition-transform no-underline">
+                AMS
+            </a>
+
+            <!--Central Links-->
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="/home" class="text-sm font-medium text-white/90 hover:text-white transition-colors no-underline">Home</a>
+                <% if (user) { %>
+                    <a href="/my-room" class="text-sm font-medium text-white/90 hover:text-white transition-colors no-underline">My Room</a>
+                    <a href="/notifications" class="text-sm font-medium text-white/90 hover:text-white transition-colors no-underline">Notifications</a>
+                <% } %>
+            </div>
+        </div>
+
+        <!--Session Actions-->
+        <div class="hidden md:flex items-center space-x-4">
+            <% if (user) { %>
+                <div class="flex items-center space-x-3 text-white/90">
+                    <span class="font-bold text-sm tracking-wide"><%= user.first_name %></span>
+                    <% if (user.role === 'admin') { %>
+                        <a href="/admin/dashboard" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl no-underline transition-colors">
+                            Admin Panel
+                        </a>
+                    <% } %>
+                    <a href="/logout" class="text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-xl no-underline transition-colors">
+                        Logout
+                    </a>
+                </div>
+            <% } else { %>
+                <a href="/login" class="bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-2.5 rounded-xl text-xs no-underline transition-all duration-150">
+                    <i class="fa-solid fa-right-to-bracket mr-1.5"></i>Log In
+                </a>
+            <% } %>
+        </div>
+    </div>
+</nav>
