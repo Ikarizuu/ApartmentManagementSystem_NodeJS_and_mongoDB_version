@@ -1,8 +1,17 @@
 <%- include('partials/header') %>
 
 <div class="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
-    <!--Left Splash Branding Track Matrix Segment Panel Box-->
-    <div class="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden bg-[#3b4276]">
+    <!-- Left Splash Branding Segment Panel Box -->
+    <div class="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
+        <!-- Background photo positioned behind the layout color -->
+        <img 
+            src="/images/Apartment_Pic.png" 
+            alt="Apartment Splash" 
+            class="absolute inset-0 w-full h-full object-cover object-center z-0"
+        />
+        <!-- Custom overlay colored background with 90% opacity matches the react setup -->
+        <div class="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
+        
         <div class="relative z-20 flex flex-col items-center justify-center">
             <h1 class="ams-logo text-8xl italic font-bold tracking-wider mb-2 text-white border-0 bg-transparent uppercase">
                 AMS
@@ -14,18 +23,30 @@
         </div>
     </div>
 
-    <!--Right Secure Action Input Fields Row Form Workspace-->
+    <!-- Right Secure Action Input Fields Form Workspace -->
     <div class="col-span-1 md:col-span-6 flex flex-col justify-center items-center p-8 sm:p-16 bg-white">
         <div class="w-full max-w-md flex flex-col items-center">
+            
+            <!-- Mobile View Branding Logo (Hidden on larger viewports) -->
+            <div class="md:hidden flex flex-col items-center mb-8 select-none">
+                <h1 class="ams-logo text-6xl italic font-bold tracking-wider border-0 bg-transparent uppercase m-0 text-[#3b4276]">
+                    AMS
+                </h1>
+                <div class="w-24 border-t my-1.5 border-[#3b4276]/25"></div>
+                <p class="text-[9px] font-medium uppercase tracking-widest m-0 text-center text-slate-500">
+                    Apartment Management System
+                </p>
+            </div>
+
             <div class="w-full space-y-6">
                 <h2 class="text-3xl font-extrabold text-center mb-8 border-0 text-[#3b4276]">
                     Login
                 </h2>
 
-                <!--Error Handler Notification Alert Feed Row Container Context-->
-                <% if (typeof message !== 'undefined' && message) { %>
+                <!-- Error Alert Feed Container -->
+                <% if (typeof errorMessage !== 'undefined' && errorMessage) { %>
                     <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm font-semibold text-center">
-                        <%= message %>
+                        <%= errorMessage %>
                     </div>
                 <% } %>
 
@@ -40,14 +61,29 @@
                         />
                     </div>
 
-                    <div>
+                    <!-- Password field with custom toggle eye icon button container -->
+                    <div class="relative w-full">
                         <input
                             type="password"
+                            id="login-password"
                             name="password"
                             placeholder="Password"
                             required
-                            class="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base text-slate-800"
+                            class="w-full px-4 py-3.5 pr-12 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base text-slate-800"
                         />
+                        <button
+                            type="button"
+                            onclick="togglePasswordVisibility('login-password', this)"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-0 cursor-pointer p-1 flex items-center justify-center outline-none"
+                        >
+                            <svg class="w-5 h-5 eye-icon-open" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            <svg class="w-5 h-5 eye-icon-closed hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"></path>
+                            </svg>
+                        </button>
                     </div>
 
                     <button type="submit" class="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium py-3.5 rounded-xl shadow-lg transition-all mt-2 border-0 cursor-pointer text-base">
@@ -57,7 +93,7 @@
 
                 <div class="text-center pt-4">
                     <p class="text-sm text-slate-500 m-0">
-                        Don't have an Account?{' '}
+                        Don't have an Account? 
                         <a href="/register" class="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
                             Register
                         </a>
@@ -67,5 +103,23 @@
         </div>
     </div>
 </div>
+
+<script>
+    function togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const eyeOpen = btn.querySelector('.eye-icon-open');
+        const eyeClosed = btn.querySelector('.eye-icon-closed');
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeOpen.classList.add('hidden');
+            eyeClosed.classList.remove('hidden');
+        } else {
+            input.type = 'password';
+            eyeOpen.classList.remove('hidden');
+            eyeClosed.classList.add('hidden');
+        }
+    }
+</script>
 
 <%- include('partials/footer') %>

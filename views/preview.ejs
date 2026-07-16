@@ -31,15 +31,18 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <% rooms.forEach(function(room) { %>
+                        <!--Render room details dynamically based on database properties-->
                         <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
                             <div>
-                                <h3 class="text-lg font-bold text-slate-800 m-0">Room <%= room.id %></h3>
-                                <p class="text-slate-500 text-xs my-1">Studio Apartment • <%= room.floor %></p>
+                                <!--Fixed: Displaying alphabetical roomName instead of schema Object ID-->
+                                <h3 class="text-lg font-bold text-slate-800 m-0"><%= room.roomName %></h3>
+                                <p class="text-slate-500 text-xs my-1">Studio Apartment • Floor <%= room.floor %></p>
                                 <p class="text-[#3b4276] font-extrabold text-lg mt-1 m-0">₱<%= room.price.toLocaleString() %>/mo</p>
                             </div>
                             <div class="mt-4">
                                 <form action="/rent-application" method="GET">
-                                    <input type="hidden" name="room" value="<%= room.id %>" />
+                                    <!--Fixed: Passing alphabetical room name variable to URL parameters-->
+                                    <input type="hidden" name="room" value="<%= room.roomName %>" />
                                     <button type="submit" class="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center">
                                         Rent Now
                                     </button>

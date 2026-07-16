@@ -1,26 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 
-//Render login page
+//Render the login page
 router.get('/login', (req, res) => {
-    res.render('login', { message: null });
+    if (req.session.user) {
+        return res.redirect('/home');
+    }
+    res.render('login', { errorMessage: null });
 });
 
-//Process account log in credentials
+//Handle login submission
 router.post('/login', async (req, res) => {
     const { email_address, password } = req.body;
+
     try {
+        //Look up user using emailAddress
         const user = await User.findOne({ emailAddress: email_address.trim().toLowerCase() });
+
         if (!user) {
-            return res.render('login', { message: 'Incorrect email or password' });
+            return res.render('login', { errorMessage: 'Invalid email address or password.' });
         }
+
+        //Verify password against database hash
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.render('login', { message: 'Incorrect email or password' });
+            return res.render('login', { errorMessage: 'Invalid email address or password.' });
         }
-        //Store structural session variables for EJS context injection
+
+        //Set up session parameters to match EJS views precisely
         req.session.user = {
             id: user._id,
             first_name: user.firstName,
@@ -28,52 +37,67 @@ router.post('/login', async (req, res) => {
             email_address: user.emailAddress,
             role: user.role
         };
+
+        //Redirect based on system authorization roles
         if (user.role === 'admin') {
             return res.redirect('/admin/dashboard');
+        } else {
+            return res.redirect('/home');
         }
-        res.redirect('/home');
+
     } catch (err) {
-        res.render('login', { message: 'Unable to log in. Please try again.' });
+        console.error('Login system error:', err);
+        res.render('login', { errorMessage: 'An error occurred during authentication.' });
     }
 });
 
-//Render account registration window
+//Render the registration page
 router.get('/register', (req, res) => {
-    res.render('register', { message: null });
+    if (req.session.user) {
+        return res.redirect('/home');
+    }
+    res.render('register', { errorMessage: null });
 });
 
-//Process tenant registration form submissions
+//Handle registration submission
 router.post('/register', async (req, res) => {
-    const { first_name, last_name, email_address, password, conPassword } = req.body;
-    if (password.length < 8) {
-        return res.render('register', { message: 'Password length must be at least 8 characters' });
-    }
-    if (password !== conPassword) {
-        return res.render('register', { message: 'Confirmed password does not match' });
-    }
+    const { first_name, last_name, email_address, password, confirm_password } = req.body;
+
     try {
+        if (password !== confirm_password) {
+            return res.render('register', { errorMessage: 'Passwords do not match.' });
+        }
+
+        //Check if email is already taken
         const existingUser = await User.findOne({ emailAddress: email_address.trim().toLowerCase() });
         if (existingUser) {
-            return res.render('register', { message: 'Email address is already registered' });
+            return res.render('register', { errorMessage: 'Email address is already registered.' });
         }
-        const hashedPassword = await bcrypt.hash(password, 10);
+
+        //Create new user (pre-save hook in User.js handles hashing)
         const newUser = new User({
             firstName: first_name.trim(),
             lastName: last_name.trim(),
             emailAddress: email_address.trim().toLowerCase(),
-            password: hashedPassword,
+            password: password,
             role: 'tenant'
         });
+
         await newUser.save();
         res.redirect('/login');
+
     } catch (err) {
-        res.render('register', { message: 'Failed to create account. Please try again.' });
+        console.error('Registration system error:', err);
+        res.render('register', { errorMessage: 'Failed to create user account.' });
     }
 });
 
-//Process server session log outs
+//Handle user logout
 router.get('/logout', (req, res) => {
-    req.session.destroy(() => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+        }
         res.redirect('/login');
     });
 });
