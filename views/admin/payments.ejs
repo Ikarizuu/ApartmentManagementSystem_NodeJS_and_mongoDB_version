@@ -15,10 +15,13 @@
                     <table class="w-full text-sm text-left border-collapse">
                         <thead class="bg-slate-100/75 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <tr>
-                                <th class="py-3 px-6">Tenant</th>
+                                <th class="py-3 px-6">Tenant Account</th>
                                 <th class="py-3 px-6">Assigned Space</th>
-                                <th class="py-3 px-6">Contract Cost Rent</th>
-                                <th class="py-3 px-6">Lease Term Period</th>
+                                <th class="py-3 px-6">Billing Category</th>
+                                <th class="py-3 px-6">Method Used</th>
+                                <th class="py-3 px-6">Total Settled</th>
+                                <th class="py-3 px-6">Logging Date</th>
+                                <th class="py-3 px-6 text-center">Verification Action</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -26,8 +29,24 @@
                                 <tr class="hover:bg-slate-50/50 transition-colors">
                                     <td class="py-4 px-6 font-semibold text-slate-800"><%= p.user.firstName %> <%= p.user.lastName %></td>
                                     <td class="py-4 px-6 font-bold text-indigo-600">Room <%= p.roomName %></td>
-                                    <td class="py-4 px-6 text-emerald-600 font-extrabold">₱<%= p.monthlyRent.toLocaleString() %></td>
-                                    <td class="py-4 px-6 text-slate-500 font-mono"><%= p.monthsOfRent %> Months Allotted</td>
+                                    <td class="py-4 px-6 text-xs capitalize"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium"><%= p.billingType %></span></td>
+                                    <td class="py-4 px-6 text-xs font-semibold text-slate-700"><%= p.method %></td>
+                                    <td class="py-4 px-6 text-emerald-600 font-extrabold">₱<%= p.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 }) %></td>
+                                    <td class="py-4 px-6 text-slate-500 text-xs font-mono"><%= p.date %></td>
+                                    <td class="py-4 px-6 text-center">
+                                        <% if (p.status === 'pending') { %>
+                                            <!-- Manual validation form for Cash on Hand deposits -->
+                                            <form action="/admin/payments/<%= p.id %>/confirm" method="POST" class="m-0 inline-block">
+                                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border-0 cursor-pointer shadow-sm transition-colors">
+                                                    Confirm Receipt
+                                                </button>
+                                            </form>
+                                        <% } else { %>
+                                            <span class="inline-flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">
+                                                ✓ Cleared
+                                            </span>
+                                        <% } %>
+                                    </td>
                                 </tr>
                             <% }); %>
                         </tbody>

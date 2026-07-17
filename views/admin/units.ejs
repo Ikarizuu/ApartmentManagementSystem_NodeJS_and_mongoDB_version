@@ -8,27 +8,50 @@
 
         <main class="flex-1 overflow-y-auto p-8">
             <div class="max-w-7xl mx-auto space-y-6">
-                <!--Operational Information Threshold Alert Flag Indicator Notice Container Block-->
                 <div class="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
                     <i class="fa-solid fa-circle-info text-indigo-400"></i>
-                    <span>Minimum lease duration rules check parameters limit configured to: <strong>3 Months</strong> globally.</span>
+                    <span>Dynamic Pricing Policy Matrix: Floors 1-2 (₱4,000.00) | Floor 3 (₱3,500.00)</span>
                 </div>
 
-                <!--Apartment Space Inventory Rooms Grid Content Row Track Items Layout Container-->
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Apartment Space Inventory Rooms Grid Layout -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     <% units.forEach(function(unit) { %>
-                        <div class="bg-white border rounded-xl p-4 transition-all hover:shadow-lg relative <%= unit.status === 'vacant' ? 'border-amber-300' : 'border-slate-200' %>">
-                            <div class="text-xl font-bold text-slate-800">Room <%= unit.roomName %></div>
-                            <div class="text-[11px] text-slate-500 mb-2">Studio Unit Apartment Floor Layout</div>
-                            
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold <%= unit.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' %>">
-                                <%= unit.status === 'active' ? '● Occupied' : '○ Vacant' %>
-                            </span>
-
-                            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                                <span class="text-slate-500 font-medium">Monthly Cost Base:</span>
-                                <span class="font-extrabold text-indigo-600">₱<%= unit.monthlyRent.toLocaleString() %></span>
+                        <div class="bg-white border rounded-2xl p-5 transition-all hover:shadow-md relative flex flex-col justify-between <%= unit.status === 'vacant' ? 'border-amber-200 bg-amber-50/10' : 'border-slate-200' %>">
+                            <div>
+                                <div class="flex justify-between items-start">
+                                    <div class="text-xl font-bold text-slate-800">Room <%= unit.roomName %></div>
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold <%= unit.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' %>">
+                                        <%= unit.status === 'active' ? '● Occupied' : '○ Vacant' %>
+                                    </span>
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">Studio Unit Apartment Floor Layout</div>
+                                
+                                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                                    <span class="text-slate-500 font-medium">Monthly Cost Base:</span>
+                                    <span class="font-extrabold text-indigo-600">₱<%= unit.monthlyRent.toLocaleString() %></span>
+                                </div>
                             </div>
+
+                            <% if (unit.status === 'active') { %>
+                                <!-- ADMIN UTILITY BILL EDIT/UPDATE FORM COMPONENT -->
+                                <form action="/admin/rooms/setup-utilities" method="POST" class="mt-4 pt-4 border-t border-slate-100 space-y-2 text-left">
+                                    <input type="hidden" name="roomName" value="<%= unit.roomName %>" />
+                                    <label class="text-[10px] uppercase font-black tracking-wider text-slate-500 block">Update Utility Statement</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div class="space-y-1">
+                                            <span class="text-[9px] font-bold text-slate-400 block">Electricity</span>
+                                            <input type="number" name="electricity" value="<%= unit.electricity %>" placeholder="Electricity (₱)" required min="0" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <span class="text-[9px] font-bold text-slate-400 block">Water</span>
+                                            <input type="number" name="water" value="<%= unit.water %>" placeholder="Water (₱)" required min="0" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500" />
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-1.5 rounded-lg text-[10px] border-0 cursor-pointer transition-colors shadow-sm">
+                                        Save & Update Statement
+                                    </button>
+                                </form>
+                            <% } %>
                         </div>
                     <% }); %>
                 </div>

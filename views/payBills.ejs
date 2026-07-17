@@ -1,86 +1,192 @@
 <%- include('partials/header') %>
 <%- include('partials/topbar') %>
 
-<div class="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
+<div class="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center relative">
     <div class="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
         
         <!-- Header Section showing dynamic calendar values -->
-        <div class="border-b border-slate-200 pb-4">
-            <h1 class="text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-[#3b4276]">
-                <% if (!isFullyBoarded) { %>
-                    Lease Onboarding: Initial Deposit
-                <% } else { %>
-                    Current Bill Statement
-                <% } %>
-            </h1>
-            <p class="text-slate-500 text-sm mt-1 m-0">
-                <% if (!isFullyBoarded) { %>
-                    Settle your advance down payment rent parameters below to complete configuration check-in.
-                <% } else { %>
-                    Review your unit breakdown ledger utilities and authorize transaction clearings securely.
-                <% } %>
-            </p>
+        <div class="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+                <h1 class="text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-[#3b4276]">
+                    <% if (isWaitingConfirmation) { %>
+                        Payment Pending Validation
+                    <% } else if (!isFullyBoarded) { %>
+                        Lease Onboarding: Initial Deposit
+                    <% } else { %>
+                        Current Bill Statement
+                    <% } %>
+                </h1>
+                <p class="text-slate-500 text-sm mt-1 m-0">
+                    <% if (isWaitingConfirmation) { %>
+                        Your manual Cash on Hand tracking request has been logged and is awaiting verification by the admin.
+                    <% } else if (!isFullyBoarded) { %>
+                        Settle your advance down payment rent parameters below to complete configuration check-in.
+                    <% } else { %>
+                        Review your unit breakdown ledger utilities and authorize transaction clearings securely.
+                    <% } %>
+                </p>
+            </div>
+            <!-- Month and Year Indicator Badge Element Context -->
+            <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2 flex items-center gap-2 text-xs font-bold text-indigo-700 w-max self-start sm:self-center select-none shadow-sm">
+                <i class="fa-solid fa-calendar-days text-indigo-400"></i>
+                <span>Billing Period: <%= currentPeriodLabel %></span>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-            
-            <!-- Left Grid: Billing Items Ledger -->
-            <div class="md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <h3 class="text-lg font-bold m-0 text-[#3b4276]">Statement Ledger</h3>
+        <% if (isWaitingConfirmation) { %>
+            <!-- WAITING LOCKOUT SCREEN VIEW -->
+            <div class="w-full max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl p-8 text-center space-y-6">
+                <div class="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto text-2xl animate-pulse">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
                 </div>
-
-                <div class="space-y-4 text-sm font-medium text-slate-600">
-                    <div class="flex justify-between items-center">
-                        <span>Advance Rent Deposit (<%= application.roomRequested %>)</span>
-                        <span class="font-bold text-slate-900">₱<%= baseRent.toLocaleString() %></span>
+                <div class="space-y-2">
+                    <h3 class="text-2xl font-bold text-slate-800 m-0">Awaiting Admin Confirmation</h3>
+                    <p class="text-slate-500 text-sm max-w-md mx-auto m-0 leading-relaxed">
+                        You have submitted a payment via **Cash on Hand**. Further payment transactions and occupancy settings are temporarily locked until the supervisor visual-confirms your deposit parameters.
+                    </p>
+                </div>
+                <div class="pt-2">
+                    <a href="/my-room" class="inline-flex bg-slate-900 hover:bg-slate-800 text-white font-bold px-8 py-3 rounded-xl text-xs border-0 cursor-pointer no-underline transition-colors shadow-sm">
+                        Back to My Room Hub
+                    </a>
+                </div>
+            </div>
+        <% } else { %>
+            <!-- BILLING INTERACTION WORKSPACE GRID -->
+            <div id="billing-workspace-grid" class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+                
+                <!-- Left Grid: Billing Items Ledger -->
+                <div class="md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <h3 class="text-lg font-bold m-0 text-[#3b4276]">Statement Ledger</h3>
                     </div>
 
-                    <% if (isFullyBoarded) { %>
-                        <!-- Dynamic metered utility items are only billed once fully checked in -->
-                        <div class="flex justify-between items-center">
-                            <span>Water (Metered Utilities)</span>
-                            <span class="font-bold text-slate-900">₱112.50</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span>Electricity (Metered Utilities)</span>
-                            <span class="font-bold text-slate-900">₱1,200.00</span>
-                        </div>
+                    <!-- Indication of Rent Due Date Info Banner -->
+                    <div class="p-3.5 bg-rose-50 rounded-2xl border border-rose-100 flex gap-2.5 items-center text-rose-700 text-xs select-none">
+                        <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
+                        <span>Lease Account Due Date Deadline: <strong class="underline"><%= rentDueDateLabel %></strong></span>
+                    </div>
+
+                    <div class="space-y-4 text-sm font-medium text-slate-600">
+                        <% let runningTotal = 0; %>
+                        
+                        <% if (!isFullyBoarded) { %>
+                            <!-- Onboarding Mode: Display dynamic base downpayment cost details -->
+                            <div class="flex justify-between items-center">
+                                <span>Advance Rent Deposit (<%= application.roomRequested %>)</span>
+                                <span class="font-bold text-slate-900">₱<%= baseRent.toLocaleString() %></span>
+                            </div>
+                            <% runningTotal += baseRent; %>
+                            
+                            <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-2.5 items-start text-amber-700 text-xs">
+                                <i class="fa-solid fa-circle-info text-amber-400 mt-0.5"></i>
+                                <span>Utility billing meters (Electricity, Water) will remain unbilled until physical check-in occurs.</span>
+                            </div>
+                        <% } else { %>
+                            <!-- Standard Active Account Mode: Utilities are bundled and paid strictly together with current month rent cost -->
+                            <div class="flex justify-between items-center border-b border-slate-100/60 pb-2">
+                                <span>Monthly Unit Lease Rent (<%= application.roomRequested %>)</span>
+                                <span class="font-bold text-slate-900">₱<%= baseRent.toLocaleString() %></span>
+                            </div>
+                            <% runningTotal += baseRent; %>
+
+                            <% if (utilityBills && utilityBills.length > 0) { %>
+                                <% utilityBills.forEach(function(bill) { %>
+                                    <div class="flex justify-between items-center border-b border-slate-50 pb-2">
+                                        <span class="capitalize"><%= bill.type %> Statement Allocation</span>
+                                        <span class="font-bold text-slate-900">₱<%= bill.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }) %></span>
+                                    </div>
+                                    <% runningTotal += bill.amount; %>
+                                <% }); %>
+                            <% } else { %>
+                                <div class="p-3 bg-slate-50 rounded-xl text-slate-400 text-xs font-medium italic text-center">
+                                    No separate utility adjustments reported by layout admin this session.
+                                </div>
+                            <% } %>
+                        <% } %>
+                    </div>
+
+                    <div class="border-t-2 border-slate-900 pt-4 mt-4 flex justify-between items-center">
+                        <span class="text-base font-extrabold text-slate-800">Total Amount Due:</span>
+                        <span class="text-2xl font-black text-indigo-600">
+                            ₱<%= runningTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }) %>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Right Grid: Payment Channels Selection -->
+                <div class="md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
+                    <h3 class="text-lg font-bold m-0 border-b border-slate-100 pb-3 text-[#3b4276]">Payment Options</h3>
+                    
+                    <% if (runningTotal > 0) { %>
+                        <form action="/pay-bills" method="POST" id="paymentDetailsForm" class="space-y-5">
+                            <input type="hidden" name="amount" value="<%= runningTotal %>" />
+                            
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-700 block">Select Payment Method</label>
+                                <select name="paymentMethod" id="paymentMethod" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none text-slate-800 font-semibold text-sm focus:ring-2 focus:ring-indigo-500">
+                                    <option value="gcash">GCash Digital Wallet</option>
+                                    <option value="bank">Bank Transfer Routing</option>
+                                    <option value="cash">Cash on Hand</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center">
+                                Authorize Payment
+                            </button>
+                        </form>
                     <% } else { %>
-                        <!-- Warning indicator highlighting deposit-only configuration -->
-                        <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-2.5 items-start text-amber-700 text-xs">
-                            <i class="fa-solid fa-circle-info text-amber-400 mt-0.5"></i>
-                            <span>Utility billing meters (Electricity, Water) will remain unbilled until physical check-in occurs.</span>
+                        <div class="text-center py-6 text-slate-400 text-xs font-medium border border-dashed border-slate-200 rounded-2xl select-none">
+                            No billing actions require clearance at this time.
                         </div>
                     <% } %>
                 </div>
+            </div>
+        <% } %>
 
-                <div class="border-t-2 border-slate-900 pt-4 mt-4 flex justify-between items-center">
-                    <span class="text-base font-extrabold text-slate-800">Total Amount Due:</span>
-                    <span class="text-2xl font-black text-indigo-600">
-                        ₱<%= (isFullyBoarded ? (baseRent + 1312.5) : baseRent).toLocaleString(undefined, { minimumFractionDigits: 2 }) %>
-                    </span>
+        <!-- HIDDEN DIGITAL RECEIPT PREVIEW PANEL -->
+        <div id="digital-receipt-modal" class="hidden w-full max-w-xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 md:p-8 space-y-6 animate-fade-in">
+            <div class="text-center space-y-2 border-b border-slate-100 pb-4">
+                <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                    <i id="receipt-status-icon" class="fa-solid fa-circle-check"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-800 m-0">Transaction Receipt</h2>
+                <p id="receipt-headline-notice" class="text-xs text-slate-500 m-0">Payment processed and registered successfully.</p>
+            </div>
+
+            <div class="space-y-3 text-xs font-medium text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div class="flex justify-between">
+                    <span>Tenant Name:</span>
+                    <span class="font-bold text-slate-800"><%= user.first_name %> <%= user.last_name %></span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Assigned Room:</span>
+                    <span class="font-bold text-slate-800"><%= application.roomRequested %></span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Method Chosen:</span>
+                    <span id="receipt-method-text" class="font-bold text-slate-800 uppercase">GCASH</span>
+                </div>
+                <div class="flex justify-between border-t border-slate-200/60 pt-2 mt-2 text-sm">
+                    <span class="font-bold text-slate-700">Total Settled:</span>
+                    <span id="receipt-amount-text" class="font-black text-indigo-600">₱0.00</span>
                 </div>
             </div>
 
-            <!-- Right Grid: Payment Channels Selection -->
-            <div class="md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
-                <h3 class="text-lg font-bold m-0 border-b border-slate-100 pb-3 text-[#3b4276]">Payment Options</h3>
-                
-                <form onsubmit="executePayment(event)" class="space-y-5">
-                    <div class="space-y-2">
-                        <label class="text-xs font-bold text-slate-700 block">Select Payment Method</label>
-                        <select id="paymentMethod" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none text-slate-800 font-semibold text-sm focus:ring-2 focus:ring-indigo-500">
-                            <option value="gcash">GCash Digital Wallet</option>
-                            <option value="bank">Bank Transfer Routing</option>
-                            <option value="cash">Over-the-Counter Cash</option>
-                        </select>
-                    </div>
+            <div id="cash-pending-alert" class="hidden p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-semibold space-y-1">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-amber-500"></i>
+                    <span>Awaiting Administrative Action</span>
+                </div>
+                <p class="m-0 text-[11px] font-medium text-amber-700/90 leading-normal">
+                    Because you selected Cash on Hand, your space records will mark this statement as active once the apartment manager manual-confirms receipt parameters.
+                </p>
+            </div>
 
-                    <button type="submit" class="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center">
-                        Authorize Payment
-                    </button>
-                </form>
+            <div class="flex gap-3 pt-2">
+                <a href="/my-room" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-center font-bold py-3 rounded-xl text-xs border-0 cursor-pointer no-underline transition-colors">
+                    Return to Dashboard Hub
+                </a>
             </div>
         </div>
 
@@ -88,10 +194,44 @@
 </div>
 
 <script>
-    function executePayment(e) {
-        e.preventDefault();
-        const method = document.getElementById('paymentMethod').value;
-        alert(`Initializing payment authorization via ${method.toUpperCase()} channel. Please await receipt confirmation.`);
+    const formEl = document.getElementById('paymentDetailsForm');
+    if (formEl) {
+        formEl.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const formData = new FormData(form);
+            const searchParams = new URLSearchParams(formData);
+
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: searchParams,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    document.getElementById('billing-workspace-grid').classList.add('hidden');
+                    const receiptModal = document.getElementById('digital-receipt-modal');
+                    receiptModal.classList.remove('hidden');
+
+                    document.getElementById('receipt-method-text').textContent = result.method === 'cash' ? 'Cash on Hand' : result.method.toUpperCase();
+                    document.getElementById('receipt-amount-text').textContent = '₱' + parseFloat(result.amount).toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+                    if (result.status === 'pending') {
+                        document.getElementById('receipt-status-icon').className = 'fa-solid fa-hourglass-half text-amber-500 animate-pulse';
+                        document.getElementById('receipt-headline-notice').textContent = 'Payment Statement Placed Under Review';
+                        document.getElementById('cash-pending-alert').classList.remove('hidden');
+                    }
+                } else {
+                    alert('Could not authenticate billing authorization parameters.');
+                }
+            } catch (err) {
+                alert('A structural routing context failure occurred.');
+            }
+        });
     }
 </script>
 

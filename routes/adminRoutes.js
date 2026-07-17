@@ -5,6 +5,7 @@ const Tenant = require('../models/Tenant');
 const Room = require('../models/Room');
 const User = require('../models/User');
 const Announcement = require('../models/Announcement');
+const Transaction = require('../models/Transaction');
 
 //Authentication gateway middleware barrier for administrators
 const isAdmin = (req, res, next) => {
@@ -20,40 +21,30 @@ router.get('/dashboard', isAdmin, async (req, res) => {
         const totalRooms = await Room.countDocuments();
         const occupiedRooms = await Room.countDocuments({ isAvailable: false });
         const vacantRooms = await Room.countDocuments({ isAvailable: true });
-        const pendingApps = await RentApplication.countDocuments({ status: 'pending' });
         const activeTenants = await Tenant.countDocuments();
 
-        //Calculate total monthly revenue dynamically based on prices of occupied rooms
         const occupiedRoomDetails = await Room.find({ isAvailable: false });
         const totalRevenue = occupiedRoomDetails.reduce((sum, room) => sum + room.price, 0);
-
-        //Calculate occupancy rate percentage safely
         const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
 
-        //Build stats payload to align perfectly with admin/dashboard template expectations
         const stats = {
             totalRevenue,
             activeTenants,
             occupancyRate,
-            openMaintenance: 2, //Fallback static count matching placeholder maintenance tickets below
+            openMaintenance: 0,
             occupiedUnits: occupiedRooms,
             vacantUnits: vacantRooms
         };
 
-        //Semi-static trend percentage chartData array mapping index expectations
         const chartData = [
-            { month: 'Jan', percentage: 45 },
-            { month: 'Feb', percentage: 60 },
-            { month: 'Mar', percentage: 75 },
-            { month: 'Apr', percentage: 90 },
-            { month: 'May', percentage: 80 },
-            { month: 'Jun', percentage: 95 }
+            { month: 'Jan', percentage: 45 }, { month: 'Feb', percentage: 60 },
+            { month: 'Mar', percentage: 75 }, { month: 'Apr', percentage: 90 },
+            { month: 'May', percentage: 80 }, { month: 'Jun', percentage: 95 }
         ];
 
         res.render('admin/dashboard', { stats, chartData });
     } catch (err) {
-        console.error('Dashboard rendering error:', err);
-        res.status(500).send('Server error loading admin metrics');
+        res.status(500).send('Server error');
     }
 });
 
@@ -63,37 +54,133 @@ router.get('/applications', isAdmin, async (req, res) => {
         const applications = await RentApplication.find({ status: 'pending' }).sort({ createdAt: -1 });
         res.render('admin/applications', { applications });
     } catch (err) {
-        res.status(500).send('Error retrieving pending application records');
+        res.status(500).send('Error');
     }
 });
 
-//Render room/unit management matrix overview
+//Dynamic room inventory setup pulling existing utility payments to pre-fill editor forms
 router.get('/rooms', isAdmin, async (req, res) => {
     try {
         const rooms = await Room.find().sort({ roomName: 1 });
-        const units = rooms.map(r => ({
-            roomName: r.roomName.replace('Room ', ''),
-            status: r.isAvailable ? 'vacant' : 'active',
-            monthlyRent: r.price
+        
+        const units = await Promise.all(rooms.map(async (r) => {
+            const isThirdFloor = r.roomName.includes('Room I') || r.roomName.includes('Room J') || 
+                                r.roomName.includes('Room K') || r.roomName.includes('Room L') || 
+                                r.roomName.includes('Room M') || r.roomName.includes('Room N');
+            
+            let electricityCost = 0;
+            let waterCost = 0;
+            
+            if (!r.isAvailable && r.currentTenant) {
+                const existingElectricity = await Transaction.findOne({ user: r.currentTenant, roomName: r.roomName, status: 'pending', type: 'utilities', paymentMethod: 'bank' });
+                const existingWater = await Transaction.findOne({ user: r.currentTenant, roomName: r.roomName, status: 'pending', type: 'utilities', paymentMethod: 'gcash' });
+                
+                if (existingElectricity) electricityCost = existingElectricity.amount;
+                if (existingWater) waterCost = existingWater.amount;
+            }
+
+            return {
+                roomName: r.roomName.replace('Room ', ''),
+                status: r.isAvailable ? 'vacant' : 'active',
+                monthlyRent: isThirdFloor ? 3500 : 4000,
+                electricity: electricityCost,
+                water: waterCost
+            };
         }));
+
         res.render('admin/units', { units });
     } catch (err) {
-        res.status(500).send('Error loading unit records matrix');
+        res.status(500).send('Error');
     }
 });
 
-//Alternative route mappings matching units link in views
 router.get('/units', isAdmin, async (req, res) => {
+    res.redirect('/admin/rooms');
+});
+
+//UPDATES OR CREATES UTILITY RECOGNITIONS CLEANLY PREVENTING COLLECTION DUPLICATIONS
+router.post('/rooms/setup-utilities', isAdmin, async (req, res) => {
+    const { roomName, electricity, water } = req.body;
     try {
-        const rooms = await Room.find().sort({ roomName: 1 });
-        const units = rooms.map(r => ({
-            roomName: r.roomName.replace('Room ', ''),
-            status: r.isAvailable ? 'vacant' : 'active',
-            monthlyRent: r.price
-        }));
-        res.render('admin/units', { units });
+        const room = await Room.findOne({ roomName: `Room ${roomName}` });
+        if (room && room.currentTenant) {
+            // Check and update existing electricity parameters cleanly using returnDocument to avoid warnings
+            await Transaction.findOneAndUpdate(
+                { user: room.currentTenant, roomName: `Room ${roomName}`, status: 'pending', type: 'utilities', paymentMethod: 'bank' },
+                { amount: parseFloat(electricity) },
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+            );
+
+            // Check and update existing water parameters cleanly using returnDocument to avoid warnings
+            await Transaction.findOneAndUpdate(
+                { user: room.currentTenant, roomName: `Room ${roomName}`, status: 'pending', type: 'utilities', paymentMethod: 'gcash' },
+                { amount: parseFloat(water) },
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+            );
+        }
+        res.redirect('/admin/rooms');
     } catch (err) {
-        res.status(500).send('Error loading unit records matrix');
+        console.error("Utility updates process tracking crash:", err);
+        res.status(500).send('Error setting utilities');
+    }
+});
+
+//Load transaction histories inside the payment ledger
+router.get('/payments', isAdmin, async (req, res) => {
+    try {
+        const historyLogs = await Transaction.find().populate('user').sort({ createdAt: -1 });
+        const payments = historyLogs.map(tx => ({
+            id: tx._id,
+            user: tx.user || { firstName: 'System', lastName: 'Record' },
+            roomName: tx.roomName.replace('Room ', ''),
+            amountPaid: tx.amount,
+            billingType: tx.type,
+            method: tx.paymentMethod === 'cash' ? 'Cash on Hand' : tx.paymentMethod.toUpperCase(),
+            status: tx.status,
+            date: tx.createdAt ? tx.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
+        }));
+        res.render('admin/payments', { payments });
+    } catch (err) {
+        res.status(500).send('Error');
+    }
+});
+
+//FIXED CRASH-PROOFED ADMINISTRATIVE MANUAL SIGN OFF VALIDATION LOGIC FOR CASH DEPOSITS
+router.post('/payments/:id/confirm', isAdmin, async (req, res) => {
+    try {
+        const transaction = await Transaction.findById(req.params.id);
+        if (!transaction) return res.status(404).send('Transaction record not found.');
+
+        transaction.status = 'completed';
+        await transaction.save();
+
+        const application = await RentApplication.findOne({ user: transaction.user }).sort({ createdAt: -1 });
+
+        if (application) {
+            application.status = 'accepted'; 
+            await application.save();
+
+            let room = await Room.findOne({ roomName: application.roomRequested });
+            if (!room) {
+                room = await Room.findOne({ roomName: `Room ${application.roomRequested}` });
+            }
+
+            const tenantExists = await Tenant.findOne({ user: transaction.user });
+            if (!tenantExists) {
+                const newTenantProfile = new Tenant({
+                    user: transaction.user,
+                    suffix: application.suffix || '',
+                    gender: application.gender || 'Other',
+                    contactNo: application.contactNo,
+                    room: room ? room._id : null
+                });
+                await newTenantProfile.save();
+            }
+        }
+
+        res.redirect('/admin/payments');
+    } catch (err) {
+        res.status(500).send('Error');
     }
 });
 
@@ -114,43 +201,13 @@ router.post('/announcements', isAdmin, async (req, res) => {
         await newAnnouncement.save();
         res.redirect('/admin/announcements');
     } catch (err) {
-        res.status(500).send('Error compiling and broadcasting announcements');
+        res.status(500).send('Error');
     }
 });
 
 //Render maintenance tickets dashboard view
 router.get('/tickets', isAdmin, (req, res) => {
-    //Construct baseline fallback items to prevent undefined collections rendering
-    const tickets = [
-        { issueCategory: 'Plumbing', roomName: 'A', urgency: 'High', description: 'Leaking pipes in bathroom floor partition.' },
-        { issueCategory: 'Electrical', roomName: 'E', urgency: 'Medium', description: 'Living room light socket short circuit.' }
-    ];
-    res.render('admin/tickets', { tickets });
-});
-
-//Alternative route mappings for maintenance dashboard
-router.get('/maintenance', isAdmin, (req, res) => {
-    const tickets = [
-        { issueCategory: 'Plumbing', roomName: 'A', urgency: 'High', description: 'Leaking pipes in bathroom floor partition.' },
-        { issueCategory: 'Electrical', roomName: 'E', urgency: 'Medium', description: 'Living room light socket short circuit.' }
-    ];
-    res.render('admin/tickets', { tickets });
-});
-
-//Render payment collection ledger dashboard logs
-router.get('/payments', isAdmin, async (req, res) => {
-    try {
-        const activeLeases = await RentApplication.find({ status: 'accepted' }).populate('user');
-        const payments = activeLeases.map(app => ({
-            user: app.user || { firstName: app.firstName, lastName: app.lastName },
-            roomName: app.roomRequested.replace('Room ', ''),
-            monthlyRent: app.roomRequested.includes('Room I') || app.roomRequested.includes('Room J') || app.roomRequested.includes('Room K') || app.roomRequested.includes('Room L') || app.roomRequested.includes('Room M') || app.roomRequested.includes('Room N') ? 3500 : 4000,
-            monthsOfRent: app.monthsOfRent
-        }));
-        res.render('admin/payments', { payments });
-    } catch (err) {
-        res.status(500).send('Error building financial payment ledger logs');
-    }
+    res.render('admin/tickets', { tickets: [] });
 });
 
 //Render financial report summaries page
@@ -160,7 +217,7 @@ router.get('/reports', isAdmin, async (req, res) => {
         const totalRevenue = occupiedRoomDetails.reduce((sum, room) => sum + room.price, 0);
         res.render('admin/reports', { stats: { totalRevenue } });
     } catch (err) {
-        res.status(500).send('Error compiling reports matrix data');
+        res.status(500).send('Error');
     }
 });
 
@@ -172,11 +229,11 @@ router.get('/tenants', isAdmin, async (req, res) => {
             user: t.user || { firstName: 'Incomplete', lastName: 'Record' },
             roomName: t.room ? t.room.roomName.replace('Room ', '') : 'N/A',
             contactNo: t.contactNo,
-            status: t.isArchived ? 'Archived' : 'Active'
+            status: 'Active'
         }));
         res.render('admin/tenants', { tenants });
     } catch (err) {
-        res.status(500).send('Error compiling tenant master directory list');
+        res.status(500).send('Error');
     }
 });
 
@@ -184,54 +241,21 @@ router.get('/tenants', isAdmin, async (req, res) => {
 router.post('/applications/:id/accept', isAdmin, async (req, res) => {
     try {
         const appRecord = await RentApplication.findById(req.params.id);
-        if (!appRecord) {
-            return res.status(404).send('Application profile record not found');
-        }
+        if (!appRecord) return res.status(404).send('Not found');
 
         const room = await Room.findOne({ roomName: appRecord.roomRequested });
-        if (!room) {
-            return res.status(404).send('Requested room layout config cannot be found');
-        }
-        if (!room.isAvailable) {
-            return res.status(400).send('Requested room unit is already occupied');
-        }
+        if (!room || !room.isAvailable) return res.status(400).send('Unavailable');
 
         room.isAvailable = false;
         room.currentTenant = appRecord.user;
         await room.save();
-
-        const newTenantProfile = new Tenant({
-            user: appRecord.user,
-            suffix: appRecord.suffix,
-            gender: appRecord.gender,
-            contactNo: appRecord.contactNo,
-            room: room._id
-        });
-        await newTenantProfile.save();
 
         appRecord.status = 'accepted';
         await appRecord.save();
 
         res.redirect('/admin/applications');
     } catch (err) {
-        res.status(500).send('Error executing application acceptance operation');
-    }
-});
-
-//Process rejection of pending rental applications
-router.post('/applications/:id/reject', isAdmin, async (req, res) => {
-    try {
-        const appRecord = await RentApplication.findById(req.params.id);
-        if (!appRecord) {
-            return res.status(404).send('Application profile record not found');
-        }
-
-        appRecord.status = 'rejected';
-        await appRecord.save();
-
-        res.redirect('/admin/applications');
-    } catch (err) {
-        res.status(500).send('Error executing application rejection operation');
+        res.status(500).send('Error');
     }
 });
 
