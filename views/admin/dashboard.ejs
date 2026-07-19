@@ -1,92 +1,180 @@
 <%- include('../partials/header') %>
-<div class="flex h-screen bg-slate-50 overflow-hidden">
-    <!--Admin Left Rail Layout Sidebar-->
-    <%- include('../partials/adminSidebar') %>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!--Right Main Interface Window Panel Area Layout Container-->
+<div class="flex h-screen bg-slate-50 overflow-hidden">
+    <%- include('../partials/adminSidebar') %>
     <div class="flex-1 flex flex-col overflow-hidden">
-        <!--Dashboard Upper Status Bar Header Content Row Panel Element Context-->
-        <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 select-none relative z-50">
-            <h2 class="text-2xl font-bold text-[#1e293b] opacity-100 m-0 tracking-tight">Admin Dashboard</h2>
-            <div class="flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md text-sm">Ad</div>
-            </div>
+        <header class="h-20 bg-white border-b border-gray-200 flex items-center px-8 shrink-0 relative z-50">
+            <h2 class="text-2xl font-bold text-[#1e293b] m-0 tracking-tight">Admin Dashboard</h2>
         </header>
 
-        <!--Main Metrics Operational Grid Track Layout Area Workspace-->
         <main class="flex-1 overflow-y-auto p-6 md:p-8">
-            <div class="mx-auto max-w-7xl space-y-8">
+            <div class="mx-auto max-w-7xl space-y-6">
                 
-                <!--Statistical Metrics Matrix Cards Group Row Track Layout Block Container-->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg bg-emerald-50 text-emerald-600 mb-3"><i class="fa-solid fa-dollar-sign"></i></div>
+                <!-- Modern Dual Dropdown Filter -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 class="text-sm font-bold text-slate-800 m-0"><i class="fa-solid fa-filter text-indigo-500 mr-2"></i>Dashboard Metrics Filter</h3>
+                    
+                    <form action="/admin/dashboard" method="GET" class="flex flex-wrap items-center gap-3">
+                        <select name="timeframe" id="timeframeSelect" onchange="toggleFilterInputs()" class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none font-semibold text-slate-700 cursor-pointer focus:ring-2 focus:ring-indigo-500">
+                            <option value="overall" <%= timeframe === 'overall' || !timeframe ? 'selected' : '' %>>Overall Performance</option>
+                            <option value="year" <%= timeframe === 'year' ? 'selected' : '' %>>Filter by Year</option>
+                            <option value="month" <%= timeframe === 'month' ? 'selected' : '' %>>Filter by Specific Month</option>
+                        </select>
+                        
+                        <div id="yearGroup" class="relative hidden">
+                            <input type="number" id="yearInput" value="<%= (typeof filterYear !== 'undefined' && filterYear) ? filterYear : new Date().getFullYear() %>" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 w-24 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700" placeholder="YYYY" />
+                        </div>
+                        
+                        <div id="monthGroup" class="relative hidden">
+                            <select id="monthInput" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 cursor-pointer">
+                                <option value="01" <%= (typeof filterMonth !== 'undefined' && filterMonth === '01') ? 'selected' : '' %>>January</option>
+                                <option value="02" <%= (typeof filterMonth !== 'undefined' && filterMonth === '02') ? 'selected' : '' %>>February</option>
+                                <option value="03" <%= (typeof filterMonth !== 'undefined' && filterMonth === '03') ? 'selected' : '' %>>March</option>
+                                <option value="04" <%= (typeof filterMonth !== 'undefined' && filterMonth === '04') ? 'selected' : '' %>>April</option>
+                                <option value="05" <%= (typeof filterMonth !== 'undefined' && filterMonth === '05') ? 'selected' : '' %>>May</option>
+                                <option value="06" <%= (typeof filterMonth !== 'undefined' && filterMonth === '06') ? 'selected' : '' %>>June</option>
+                                <option value="07" <%= (typeof filterMonth !== 'undefined' && filterMonth === '07') ? 'selected' : '' %>>July</option>
+                                <option value="08" <%= (typeof filterMonth !== 'undefined' && filterMonth === '08') ? 'selected' : '' %>>August</option>
+                                <option value="09" <%= (typeof filterMonth !== 'undefined' && filterMonth === '09') ? 'selected' : '' %>>September</option>
+                                <option value="10" <%= (typeof filterMonth !== 'undefined' && filterMonth === '10') ? 'selected' : '' %>>October</option>
+                                <option value="11" <%= (typeof filterMonth !== 'undefined' && filterMonth === '11') ? 'selected' : '' %>>November</option>
+                                <option value="12" <%= (typeof filterMonth !== 'undefined' && filterMonth === '12') ? 'selected' : '' %>>December</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="bg-indigo-600 text-white font-bold px-5 py-2 rounded-lg text-sm shadow-sm cursor-pointer border-0 hover:bg-indigo-700 transition-colors">Apply</button>
+                    </form>
+                </div>
+
+                <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                         <div>
-                            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Total Revenue</p>
-                            <p class="text-2xl font-bold text-slate-800 m-0 leading-none">₱<%= stats.totalRevenue.toLocaleString() %></p>
+                            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Total Revenue</p>
+                            <p class="text-xl font-bold text-slate-800 m-0 leading-none">₱<%= stats.totalRevenue.toLocaleString() %></p>
                         </div>
                     </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg bg-indigo-50 text-indigo-600 mb-3"><i class="fa-solid fa-users"></i></div>
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                         <div>
-                            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Active Tenants</p>
-                            <p class="text-2xl font-bold text-slate-800 m-0 leading-none"><%= stats.activeTenants %></p>
+                            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Active Tenants</p>
+                            <p class="text-xl font-bold text-slate-800 m-0 leading-none"><%= stats.activeTenants %></p>
                         </div>
                     </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg bg-blue-50 text-blue-600 mb-3"><i class="fa-solid fa-building"></i></div>
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                         <div>
-                            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Occupancy Rate</p>
-                            <p class="text-2xl font-bold text-slate-800 m-0 leading-none"><%= stats.occupancyRate %>%</p>
+                            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Occupancy Rate</p>
+                            <p class="text-xl font-bold text-slate-800 m-0 leading-none"><%= stats.occupancyRate %>%</p>
                         </div>
                     </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg bg-amber-50 text-amber-600 mb-3"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                         <div>
-                            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Open Tickets</p>
-                            <p class="text-2xl font-bold text-slate-800 m-0 leading-none"><%= stats.openMaintenance %></p>
+                            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0 mb-1">Vacant Layouts</p>
+                            <p class="text-xl font-bold text-slate-800 m-0 leading-none"><%= stats.vacantUnits %></p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl border border-rose-200 shadow-sm flex flex-col justify-between bg-rose-50/30">
+                        <div>
+                            <p class="text-[10px] font-semibold text-rose-500 uppercase tracking-wide m-0 mb-1">Pending Apps</p>
+                            <p class="text-xl font-bold text-rose-700 m-0 leading-none"><%= stats.pendingApps %></p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl border border-amber-200 shadow-sm flex flex-col justify-between bg-amber-50/30">
+                        <div>
+                            <p class="text-[10px] font-semibold text-amber-600 uppercase tracking-wide m-0 mb-1">Awaiting Payments</p>
+                            <p class="text-xl font-bold text-amber-700 m-0 leading-none"><%= stats.pendingPayments %></p>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!--Income Summary Performance Visual Graph Chart SVG Matrix Workspace Block Layout-->
-                    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div class="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col p-6">
                         <div class="mb-4">
-                            <h3 class="text-base font-bold text-slate-800 m-0 flex items-center gap-2"><i class="fa-solid fa-chart-line text-indigo-600"></i> Revenue Overview</h3>
-                            <p class="text-xs text-slate-500 m-0 mt-1">Monthly collection streams snapshot metrics overview data graph</p>
+                            <h3 class="text-base font-bold text-slate-800 m-0 flex items-center gap-2"><i class="fa-solid fa-chart-simple text-indigo-600"></i> <%= currentYear %> Revenue Breakdown</h3>
                         </div>
-                        <div class="h-48 flex items-end justify-between gap-4 px-2 pb-2 border-b border-slate-100">
-                            <% chartData.forEach(function(d) { %>
-                                <div class="flex flex-col items-center flex-1 gap-2 group relative">
-                                    <div class="w-full bg-indigo-500 rounded-t-md opacity-70 group-hover:opacity-100 transition-opacity" style="height: <%= d.percentage %>%;"></div>
-                                    <span class="text-[10px] sm:text-xs font-semibold text-slate-500"><%= d.month %></span>
-                                </div>
-                            <% }); %>
+                        <div class="relative h-64 w-full">
+                            <canvas id="revenueChart"></canvas>
                         </div>
                     </div>
 
-                    <!--Building Units Allocation Proportions Circle Progress Section Blocks Layer Component Layout-->
-                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-sm font-bold text-slate-800 m-0 flex items-center gap-2"><i class="fa-solid fa-building text-blue-600"></i> Asset Allocations</h3>
-                            <p class="text-xs text-slate-500 m-0 mt-1">Current compound units configuration layout tracking states</p>
-                        </div>
-                        <div class="space-y-4 my-auto">
-                            <div>
-                                <div class="flex justify-between text-xs mb-1"><span class="text-slate-600">Occupied Apartments</span><span class="font-bold text-slate-800"><%= stats.occupiedUnits %></span></div>
-                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="bg-blue-500 h-2 rounded-full" style="width: <%= stats.occupancyRate %>%;"></div></div>
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col p-6 space-y-6">
+                        <div class="flex-1 flex flex-col justify-center">
+                            <h3 class="text-sm font-bold text-slate-800 m-0 flex items-center gap-2 mb-2"><i class="fa-solid fa-file-signature text-rose-500"></i> Tenant Applications</h3>
+                            <div class="relative h-32 w-full flex items-center justify-center">
+                                <canvas id="appsChart"></canvas>
                             </div>
-                            <div>
-                                <div class="flex justify-between text-xs mb-1"><span class="text-slate-600">Vacant Layout Rooms</span><span class="font-bold text-slate-800"><%= stats.vacantUnits %></span></div>
-                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden"><div class="bg-amber-400 h-2 rounded-full" style="width: <%= 100 - stats.occupancyRate %>%;"></div></div>
+                        </div>
+                        <div class="border-t border-slate-100"></div>
+                        <div class="flex-1 flex flex-col justify-center">
+                            <h3 class="text-sm font-bold text-slate-800 m-0 flex items-center gap-2 mb-2"><i class="fa-solid fa-wallet text-amber-500"></i> Ledger Payments</h3>
+                            <div class="relative h-32 w-full flex items-center justify-center">
+                                <canvas id="paymentsChart"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
-
             </div>
         </main>
     </div>
 </div>
+
+<script>
+    function toggleFilterInputs() {
+        const select = document.getElementById('timeframeSelect').value;
+        const yearGroup = document.getElementById('yearGroup');
+        const monthGroup = document.getElementById('monthGroup');
+        const yearInp = document.getElementById('yearInput');
+        const monthInp = document.getElementById('monthInput');
+        
+        yearGroup.classList.add('hidden');
+        monthGroup.classList.add('hidden');
+        yearInp.removeAttribute('name');
+        monthInp.removeAttribute('name');
+
+        if (select === 'year') {
+            yearGroup.classList.remove('hidden');
+            yearInp.setAttribute('name', 'filterYear');
+        } else if (select === 'month') {
+            yearGroup.classList.remove('hidden');
+            monthGroup.classList.remove('hidden');
+            yearInp.setAttribute('name', 'filterYear');
+            monthInp.setAttribute('name', 'filterMonth');
+        }
+    }
+    window.addEventListener('DOMContentLoaded', toggleFilterInputs);
+
+    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+    const appsCtx = document.getElementById('appsChart').getContext('2d');
+    const paymentsCtx = document.getElementById('paymentsChart').getContext('2d');
+    const monthlyTotals = JSON.parse('<%- JSON.stringify(monthlyTotals) %>');
+    
+    new Chart(revenueCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            datasets: [{
+                label: 'Monthly Income (₱)', data: monthlyTotals,
+                backgroundColor: 'rgba(99, 102, 241, 0.8)', hoverBackgroundColor: 'rgba(79, 70, 229, 1)', borderRadius: 4
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: true, color: '#f1f5f9' } }, x: { grid: { display: false } } } }
+    });
+
+    new Chart(appsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Pending', 'Accepted', 'Rejected'],
+            datasets: [{ data: [<%= stats.pendingApps %>, <%= stats.acceptedApps %>, <%= stats.rejectedApps %>], backgroundColor: ['#f43f5e', '#10b981', '#64748b'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
+    });
+
+    new Chart(paymentsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Awaiting Auth', 'Completed'],
+            datasets: [{ data: [<%= stats.pendingPayments %>, <%= stats.completedPayments %>], backgroundColor: ['#f59e0b', '#3b82f6'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
+    });
+</script>
 <%- include('../partials/footer') %>

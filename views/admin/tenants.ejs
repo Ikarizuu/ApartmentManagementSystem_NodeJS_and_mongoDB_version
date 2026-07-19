@@ -17,6 +17,7 @@
                                 <th class="px-6 py-4">Allotted Unit</th>
                                 <th class="px-6 py-4">Contact Phone Key</th>
                                 <th class="px-6 py-4">Lease State Status</th>
+                                <th class="px-6 py-4 text-center">Administrative Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -24,11 +25,29 @@
                                 <tr class="hover:bg-slate-50 transition-colors">
                                     <td class="px-6 py-4 font-medium text-slate-800"><%= t.user.firstName %> <%= t.user.lastName %></td>
                                     <td class="px-6 py-4 font-bold text-indigo-600">Room <%= t.roomName %></td>
-                                    <td class="px-6 py-4 text-slate-500 font-mono"><%= t.contactNo %></td>
+                                    <td class="px-6 py-4 text-slate-500 font-mono"><%= (t.contactNo || '').split("EXT:")[0].trim() %></td>
                                     <td class="px-6 py-4">
-                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold <%= t.status === 'Pending Moveout' ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' : 'bg-emerald-100 text-emerald-800' %>">
                                             ● <%= t.status %>
                                         </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-center">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <!-- Dynamic User History Ledger View Link Button -->
+                                            <% if (t.userId) { %>
+                                                <a href="/admin/tenants/<%= t.userId %>/history" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-indigo-200 shadow-sm transition-all no-underline inline-block">
+                                                    <i class="fa-solid fa-receipt mr-1"></i> History
+                                                </a>
+                                            <% } %>
+
+                                            <% if (t.status === 'Pending Moveout') { %>
+                                                <form action="/admin/tenants/<%= t.id %>/archive" method="POST" class="m-0 inline-block">
+                                                    <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border-0 cursor-pointer shadow-sm transition-all">
+                                                        Authorize Move-out
+                                                    </button>
+                                                </form>
+                                            <% } %>
+                                        </div>
                                     </td>
                                 </tr>
                             <% }); %>

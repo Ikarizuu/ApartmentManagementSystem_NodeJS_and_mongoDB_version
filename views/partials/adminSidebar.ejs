@@ -1,85 +1,71 @@
-<!--Admin Navigation Rail Sidebar Panel-->
 <div class="w-64 bg-slate-900 text-slate-400 flex flex-col h-screen shrink-0 select-none border-r border-slate-800">
-    <!--Restored: Original Admin Logo Design-->
     <div class="h-20 bg-slate-950 flex items-center px-6 border-b border-slate-800 shrink-0">
         <a href="/admin/dashboard" class="flex items-center space-x-2.5 text-white no-underline">
-            <!--Matching original italic branding-->
             <span class="ams-logo text-3xl italic font-bold tracking-wider text-white uppercase">AMS</span>
             <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-slate-800/50 px-2 py-1 rounded">Admin</span>
         </a>
     </div>
 
-    <!--Operational Navigation Track Menu Rows-->
     <nav class="flex-grow p-4 overflow-y-auto space-y-1.5 scrollbar-none">
         <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 px-3 block mb-2">Core Panel</span>
 
-        <!--Dashboard Panel Link-->
         <a href="/admin/dashboard" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-chart-line text-sm w-5"></i>
-            <span>Dashboard Overview</span>
+            <i class="fa-solid fa-chart-line text-sm w-5"></i><span>Dashboard Overview</span>
         </a>
 
-        <!--Applications Review Link-->
-        <a href="/admin/applications" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-file-signature text-sm w-5"></i>
-            <span>Lease Applications</span>
+        <a href="/admin/applications" class="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-file-signature text-sm w-5"></i><span>Lease Applications</span>
+            </div>
+            <% if (typeof pendingAppsCount !== 'undefined' && pendingAppsCount > 0) { %>
+                <span class="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm"><%= pendingAppsCount %></span>
+            <% } %>
         </a>
 
-        <!--Active Tenant Directory Link-->
-        <a href="/admin/tenants" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-users text-sm w-5"></i>
-            <span>Tenant Directory</span>
+        <a href="/admin/tenants" class="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-users text-sm w-5"></i><span>Tenant Directory</span>
+            </div>
+            <% if (typeof pendingMoveoutCount !== 'undefined' && pendingMoveoutCount > 0) { %>
+                <span class="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm"><%= pendingMoveoutCount %></span>
+            <% } %>
         </a>
 
-        <!--Unit Management Link-->
         <a href="/admin/rooms" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-door-open text-sm w-5"></i>
-            <span>Unit Inventory</span>
+            <i class="fa-solid fa-door-open text-sm w-5"></i><span>Unit Inventory</span>
         </a>
 
         <span class="text-[9px] font-black uppercase tracking-widest text-slate-600 px-3 block pt-4 mb-2">Management</span>
 
-        <!--Financial Ledger Link-->
-        <a href="/admin/payments" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-receipt text-sm w-5"></i>
-            <span>Payment Ledger</span>
+        <a href="/admin/payments" class="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-receipt text-sm w-5"></i><span>Payment Ledger</span>
+            </div>
+            <% if (typeof pendingPaymentsCount !== 'undefined' && pendingPaymentsCount > 0) { %>
+                <span class="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm"><%= pendingPaymentsCount %></span>
+            <% } %>
         </a>
 
-        <!--Notice Board Broadcasting Link-->
         <a href="/admin/announcements" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-bullhorn text-sm w-5"></i>
-            <span>Announcements</span>
+            <i class="fa-solid fa-bullhorn text-sm w-5"></i><span>Announcements</span>
         </a>
 
-        <!--Maintenance Support Tickets Log Link-->
-        <a href="/admin/tickets" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-screwdriver-wrench text-sm w-5"></i>
-            <span>Maintenance Tickets</span>
-        </a>
-
-        <!--Performance Audit Reports Link-->
-        <a href="/admin/reports" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
-            <i class="fa-solid fa-file-invoice-dollar text-sm w-5"></i>
-            <span>Revenue Reports</span>
+        <a href="/admin/past-tenants" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold hover:bg-slate-800/50 hover:text-white transition-all no-underline text-slate-400">
+            <i class="fa-solid fa-folder-open text-sm w-5"></i><span>Past Tenants Archive</span>
         </a>
     </nav>
 
-    <!--User Session Control Footer Anchor-->
     <div class="p-4 bg-slate-950 border-t border-slate-800 shrink-0">
         <a href="/logout" class="flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-all no-underline">
-            <i class="fa-solid fa-right-from-bracket text-sm w-5"></i>
-            <span>Logout Account</span>
+            <i class="fa-solid fa-right-from-bracket text-sm w-5"></i><span>Logout</span>
         </a>
     </div>
 </div>
 
-<!--Sidebar Activation Highlighting Logic-->
 <script>
     window.addEventListener('DOMContentLoaded', () => {
         const currentPath = window.location.pathname;
-        const navLinks = document.querySelectorAll('nav a');
-        
-        navLinks.forEach(link => {
+        document.querySelectorAll('nav a').forEach(link => {
             if (link.getAttribute('href') === currentPath) {
                 link.classList.remove('text-slate-400', 'hover:bg-slate-800/50');
                 link.classList.add('bg-indigo-600', 'text-white', 'shadow-md');

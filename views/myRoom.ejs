@@ -2,7 +2,7 @@
 <%- include('partials/topbar') %>
 
 <div class="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12">
-    <!--Full Bleed Background Asset Layer matching MyRoom JSX style-->
+    <!--Full Bleed Background-->
     <div class="absolute inset-0 z-0">
         <img src="/images/Apartment_Pic.png" alt="Apartment Background" class="w-full h-full object-cover" />
         <div class="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-900/80 to-slate-950/95 z-10"></div>
@@ -15,21 +15,13 @@
             <div class="space-y-1">
                 <div class="flex flex-wrap gap-2 items-center">
                     <% if (application.status === 'pending') { %>
-                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-amber-500 text-slate-950 animate-pulse">
-                            Pending Review
-                        </span>
+                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-amber-500 text-slate-950 animate-pulse">Pending Review</span>
                     <% } else if (application.status === 'accepted' && isWaitingConfirmation) { %>
-                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-indigo-500 text-white animate-pulse">
-                            Cash Deposit Pending Confirm
-                        </span>
+                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-indigo-500 text-white animate-pulse">Cash Deposit Pending Confirm</span>
                     <% } else if (application.status === 'accepted' && !isPaid) { %>
-                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-indigo-500 text-white animate-pulse">
-                            Accepted - Payment Required
-                        </span>
+                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-indigo-500 text-white animate-pulse">Accepted - Payment Required</span>
                     <% } else if (isPaid) { %>
-                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-indigo-600 text-white font-extrabold">
-                            ACTIVE TENANCY
-                        </span>
+                        <span class="text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none bg-indigo-600 text-white font-extrabold">ACTIVE TENANCY</span>
                     <% } %>
                     <span class="text-xs text-indigo-300 font-bold flex items-center space-x-1">
                         <i class="fa-solid fa-map-marker-alt text-[10px]"></i>
@@ -37,70 +29,36 @@
                     </span>
                 </div>
 
-                <h1 class="text-3xl md:text-4xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">
-                    Welcome Back, <%= user.first_name %>
-                </h1>
-
-                <h2 class="text-xl font-sans font-medium m-0 text-slate-300 tracking-tight pt-1">
-                    Current Assigned Unit: <span class="text-indigo-200 font-bold"><%= application.roomRequested %></span>
-                </h2>
-                <p class="text-xs text-slate-400 m-0 mt-1 max-w-xl">
-                    Studio Apartment — Manage your ongoing tenancy parameters, dates, and contracts.
-                </p>
+                <h1 class="text-3xl md:text-4xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">Welcome Back, <%= user.first_name %></h1>
+                <h2 class="text-xl font-sans font-medium m-0 text-slate-300 tracking-tight pt-1">Current Assigned Unit: <span class="text-indigo-200 font-bold"><%= application.roomRequested %></span></h2>
+                <p class="text-xs text-slate-400 m-0 mt-1 max-w-xl">Studio Apartment — Manage your ongoing tenancy parameters, dates, and contracts.</p>
             </div>
         </div>
 
-        <!-- RENDER CHANNELS BASED ON LEASE REVIEWS STATE -->
         <% if (application.status === 'pending') { %>
-            <!-- PENDING REVIEW APPLICATION VIEW -->
             <div class="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 md:p-8 space-y-6">
                 <div class="border-b border-white/10 pb-4">
-                    <h3 class="text-lg font-bold text-white m-0 flex items-center gap-2">
-                        <i class="fa-solid fa-hourglass-half text-amber-500 animate-spin"></i> Lease Application Under Process
-                    </h3>
+                    <h3 class="text-lg font-bold text-white m-0 flex items-center gap-2"><i class="fa-solid fa-hourglass-half text-amber-500 animate-spin"></i> Lease Application Under Process</h3>
                     <p class="text-xs text-slate-400 m-0 mt-1">Your rental application details are locked and undergoing verification by system admin.</p>
                 </div>
-
-                <!-- Personal Information Grid -->
                 <div class="space-y-4">
                     <h4 class="text-xs font-black text-indigo-300 uppercase tracking-wider">I. Personal Details</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl">
-                            <span class="text-slate-400 block mb-1">Full Name</span>
-                            <span class="font-bold text-white"><%= application.firstName %> <%= application.lastName %> <%= application.suffix || '' %></span>
-                        </div>
-                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl">
-                            <span class="text-slate-400 block mb-1">Contact Number</span>
-                            <span class="font-bold text-white font-mono">+63 <%= application.contactNo %></span>
-                        </div>
-                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl">
-                            <span class="text-slate-400 block mb-1">Gender</span>
-                            <span class="font-bold text-white"><%= application.gender %></span>
-                        </div>
+                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl"><span class="text-slate-400 block mb-1">Full Name</span><span class="font-bold text-white"><%= application.firstName %> <%= application.lastName %> <%= application.suffix || '' %></span></div>
+                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl"><span class="text-slate-400 block mb-1">Contact Number</span><span class="font-bold text-white font-mono">+63 <%= application.contactNo %></span></div>
+                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl"><span class="text-slate-400 block mb-1">Gender</span><span class="font-bold text-white"><%= application.gender %></span></div>
                     </div>
                 </div>
-
-                <!-- Lease Details Grid -->
                 <div class="space-y-4">
                     <h4 class="text-xs font-black text-indigo-300 uppercase tracking-wider">II. Intended Lease Scope</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl">
-                            <span class="text-slate-400 block mb-1">Assigned Unit</span>
-                            <span class="font-bold text-indigo-400"><%= application.roomRequested %></span>
-                        </div>
-                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl">
-                            <span class="text-slate-400 block mb-1">Months of Intended Lease</span>
-                            <span class="font-bold text-white"><%= application.monthsOfRent %> Months</span>
-                        </div>
-                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl">
-                            <span class="text-slate-400 block mb-1">Total Occupants Limit</span>
-                            <span class="font-bold text-white"><%= application.occupants %> / 4 Pax</span>
-                        </div>
+                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl"><span class="text-slate-400 block mb-1">Assigned Unit</span><span class="font-bold text-indigo-400"><%= application.roomRequested %></span></div>
+                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl"><span class="text-slate-400 block mb-1">Months of Intended Lease</span><span class="font-bold text-white"><%= application.monthsOfRent %> Months</span></div>
+                        <div class="p-3.5 bg-slate-950/40 border border-white/10 rounded-xl"><span class="text-slate-400 block mb-1">Total Occupants Limit</span><span class="font-bold text-white"><%= application.occupants %> / 4 Pax</span></div>
                     </div>
                 </div>
             </div>
         <% } else if (application.status === 'accepted' && isWaitingConfirmation) { %>
-            <!-- ONBOARDING STEP: WAITING CASH VERIFICATION SCREEN -->
             <div class="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-8 text-center space-y-6">
                 <div class="w-16 h-16 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto text-2xl animate-pulse">
                     <i class="fa-solid fa-clock-rotate-left"></i>
@@ -112,64 +70,43 @@
                     </p>
                 </div>
                 <div class="pt-2">
-                    <a href="/pay-bills" class="inline-flex bg-slate-800 hover:bg-slate-700 text-white font-bold px-10 py-3 rounded-xl text-xs transition-all shadow-md no-underline">
-                        Review Billing Ledger Statement
-                    </a>
+                    <a href="/pay-bills" class="inline-flex bg-slate-800 hover:bg-slate-700 text-white font-bold px-10 py-3 rounded-xl text-xs transition-all shadow-md no-underline">Review Billing Ledger Statement</a>
                 </div>
             </div>
         <% } else if (application.status === 'accepted' && !isPaid) { %>
-            <!-- ONBOARDING STEP: COMPULSORY DEPOSIT PAYMENT WINDOW -->
             <div class="bg-slate-900/40 backdrop-blur-md rounded-3xl p-8 text-center space-y-6">
-                <div class="w-16 h-16 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto text-2xl">
+                <div class="w-16 h-16 bg-indigo-50/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto text-2xl">
                     <i class="fa-solid fa-wallet"></i>
                 </div>
                 <div class="space-y-2">
                     <h3 class="text-2xl font-bold text-white m-0">Secure Advance Rent Deposit</h3>
-                    <p class="text-slate-300 text-sm max-w-md mx-auto m-0">
-                        Your lease has been approved! Settle your first advance rent security deposit below to verify your tenant profile and complete assignment onboarding.
-                    </p>
+                    <p class="text-slate-300 text-sm max-w-md mx-auto m-0">Your lease has been approved! Settle your first advance rent security deposit below to verify your tenant profile and complete assignment onboarding.</p>
                 </div>
                 <div class="pt-2">
-                    <a href="/pay-bills" class="inline-flex bg-[#10b981] hover:bg-[#059669] text-white font-extrabold px-10 py-3.5 rounded-xl text-sm transition-all shadow-md no-underline">
-                        Proceed to Deposit Payment
-                    </a>
+                    <a href="/pay-bills" class="inline-flex bg-[#10b981] hover:bg-[#059669] text-white font-extrabold px-10 py-3.5 rounded-xl text-sm transition-all shadow-md no-underline">Proceed to Deposit Payment</a>
                 </div>
             </div>
         <% } else if (isPaid) { %>
-            <!-- FULL ACTIVE LEASE WORKSPACE HUB MATCHING LAYOUT REFERENCE IMAGES -->
             <div class="space-y-6">
                 
-                <!-- Core Dashboard Features Upper Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    
-                    <!-- Lease Contract Card Component Block -->
                     <div class="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 flex flex-col justify-between space-y-6 shadow-2xl">
                         <div class="space-y-3">
                             <div class="flex items-center space-x-3 text-white">
-                                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                                    <i class="fa-solid fa-file-lines text-lg"></i>
-                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0"><i class="fa-solid fa-file-lines text-lg"></i></div>
                                 <h3 class="text-base font-bold m-0 tracking-tight">Lease Contract</h3>
                             </div>
-                            <p class="text-slate-400 text-xs leading-relaxed m-0 font-normal">
-                                View legal bindings, rules, and document authentications associated with your rented room unit.
-                            </p>
+                            <p class="text-slate-400 text-xs leading-relaxed m-0 font-normal">View legal bindings, rules, and document authentications associated with your rented room unit.</p>
                         </div>
-                        <a href="/view-contract" class="w-full bg-[#5850ec] hover:bg-[#453cda] text-white text-center font-bold py-3 rounded-xl text-xs border-0 cursor-pointer transition-colors no-underline shadow-sm">
-                            See Contract
-                        </a>
+                        <a href="/view-contract" class="w-full bg-[#5850ec] hover:bg-[#453cda] text-white text-center font-bold py-3 rounded-xl text-xs border-0 cursor-pointer transition-colors no-underline shadow-sm">See Contract</a>
                     </div>
 
-                    <!-- Number of Occupants Card Component Block -->
                     <div class="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 flex flex-col justify-between space-y-6 shadow-2xl">
                         <div class="space-y-3">
                             <div class="flex items-center space-x-3 text-white">
-                                <div class="w-10 h-10 rounded-xl bg-slate-500/10 border border-white/10 text-slate-300 flex items-center justify-center shrink-0">
-                                    <i class="fa-solid fa-users"></i>
-                                </div>
+                                <div class="w-10 h-10 rounded-xl bg-slate-500/10 border border-white/10 text-slate-300 flex items-center justify-center shrink-0"><i class="fa-solid fa-users"></i></div>
                                 <h3 class="text-base font-bold m-0 tracking-tight">No. Occupants</h3>
                             </div>
-                            
                             <div class="space-y-1.5 text-left">
                                 <label class="text-[9px] uppercase font-black tracking-widest text-slate-400 block">Active Room Count</label>
                                 <div class="relative w-full">
@@ -177,65 +114,60 @@
                                 </div>
                             </div>
                         </div>
-                        <button type="button" disabled class="w-full bg-slate-800 text-slate-500 font-bold py-3 rounded-xl text-xs border-0 cursor-not-allowed opacity-50 select-none shadow-sm">
-                            Update Occupants
-                        </button>
+                        <button type="button" disabled class="w-full bg-slate-800 text-slate-500 font-bold py-3 rounded-xl text-xs border-0 cursor-not-allowed opacity-50 select-none shadow-sm">Update Occupants</button>
                     </div>
 
-                    <!-- Next Balance Statement Tracking Matrix Card -->
+                    <!-- Payment Tracker & Contract Progression Component Block -->
                     <div class="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 flex flex-col justify-between space-y-6 shadow-2xl">
                         <div class="space-y-4">
                             <div class="flex items-center space-x-3 text-white">
                                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                                    <i class="fa-solid fa-hourglass"></i>
+                                    <i class="fa-solid fa-file-invoice-dollar"></i>
                                 </div>
-                                <h3 class="text-base font-bold m-0 tracking-tight">Next Bill Due</h3>
+                                <h3 class="text-base font-bold m-0 tracking-tight">Billing & Progress</h3>
                             </div>
 
-                            <div class="space-y-2 text-xs font-medium text-slate-400">
+                            <div class="space-y-3 text-xs font-medium text-slate-400">
                                 <div class="flex justify-between items-center">
-                                    <span>Cycle Started:</span>
-                                    <span class="text-slate-200 font-semibold font-mono">July 17, 2026</span>
+                                    <span>Last Cycle Paid:</span>
+                                    <span class="text-slate-200 font-semibold font-mono"><%= currentCycleStart %></span>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span>Deadline Date:</span>
-                                    <span class="text-rose-400 font-bold font-mono">August 17, 2026</span>
+                                    <span>Paid Valid Until:</span>
+                                    <span class="text-rose-400 font-bold font-mono"><%= rentDueDateLabel %></span>
+                                </div>
+                                
+                                <!-- Dynamic Contract Tracking Bar -->
+                                <div class="pt-3 border-t border-white/10">
+                                    <div class="flex justify-between text-[10px] mb-1.5 uppercase font-bold tracking-wider text-slate-500">
+                                        <span>Lease Completion Target</span>
+                                        <span class="text-indigo-300"><%= totalPaidMonths %> / <%= contractMaxMonths %> Months</span>
+                                    </div>
+                                    <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden shadow-inner">
+                                        <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: <%= Math.min((totalPaidMonths / contractMaxMonths) * 100, 100) %>%;"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <a href="/pay-bills" class="w-full bg-[#10b981] hover:bg-[#059669] text-white text-center font-bold py-3 rounded-xl text-xs border-0 cursor-pointer transition-colors no-underline shadow-sm">
-                            Pay Rent Balance
+                            Pay / View Statement Actions
                         </a>
                     </div>
-
                 </div>
 
-                <!-- Lower Extended Features Control Action Row Panel Row Frame -->
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
-                    
-                    <!-- Term Schedule Extension SECURE DROPDOWN SELECTOR Block Container -->
                     <form action="/extend-lease" method="POST" class="m-0 md:col-span-8 bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 flex flex-col justify-between gap-4 shadow-2xl text-left">
                         <div class="flex items-center space-x-3 text-white">
-                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
-                                <i class="fa-solid fa-calendar-plus"></i>
-                            </div>
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0"><i class="fa-solid fa-calendar-plus"></i></div>
                             <h3 class="text-base font-bold m-0 tracking-tight">Extend Lease Term</h3>
                         </div>
-                        
                         <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
                             <div class="space-y-1">
-                                <p class="text-slate-400 text-xs leading-relaxed m-0 max-w-sm">
-                                    Select your targeted extension month. Rent terms will automatically adjust to the 17th day of your chosen month.
-                                </p>
-                                <div class="text-[11px] text-indigo-300 font-medium mt-1">
-                                    Current Rented End Horizon: <span class="font-bold underline text-white"><%= contractEndDateLabel %></span>
-                                </div>
+                                <p class="text-slate-400 text-xs leading-relaxed m-0 max-w-sm">Select your targeted extension month. Rent terms will automatically adjust to the cycle date of your chosen month.</p>
                             </div>
-                            
                             <div class="space-y-1.5 shrink-0 w-full md:w-max">
                                 <label class="text-[9px] uppercase font-black tracking-widest text-slate-400 block">EXPECTED RENT END MONTH</label>
                                 <div class="flex gap-2 items-center">
-                                    <!-- Bulletproof select block with clear dropdown parameters in YYYY-MM format -->
                                     <select name="extendEndMonth" required class="px-4 py-2.5 rounded-xl bg-slate-950/60 border border-white/10 text-white font-semibold text-xs outline-none focus:border-indigo-500 w-full md:w-52 transition-all cursor-pointer">
                                         <option value="" disabled selected>Select Target Month</option>
                                         <option value="2026-08">August 2026</option>
@@ -249,38 +181,22 @@
                                         <option value="2027-06">June 2027</option>
                                         <option value="2027-12">December 2027</option>
                                     </select>
-                                    <button type="submit" class="bg-[#5850ec] hover:bg-[#453cda] text-white font-bold px-4 py-2.5 rounded-xl text-xs border-0 cursor-pointer shadow-sm shrink-0 transition-colors select-none">
-                                        Submit Extension
-                                    </button>
+                                    <button type="submit" class="bg-[#5850ec] hover:bg-[#453cda] text-white font-bold px-4 py-2.5 rounded-xl text-xs border-0 cursor-pointer shadow-sm shrink-0 transition-colors select-none">Submit Extension</button>
                                 </div>
                             </div>
                         </div>
                     </form>
 
-                    <!-- Destructive Tenancy Termination Layout Card -->
                     <form action="/terminate-lease" method="POST" class="m-0 md:col-span-4 bg-red-950/20 backdrop-blur-md border border-red-900/30 rounded-3xl p-6 flex flex-col justify-between space-y-4 shadow-2xl text-left">
                         <div class="space-y-2">
-                            <div class="flex items-center space-x-2 text-red-400 font-bold">
-                                <i class="fa-solid fa-right-from-bracket text-sm"></i>
-                                <h3 class="text-sm font-bold m-0 tracking-tight">Terminate Tenancy</h3>
-                            </div>
-                            <p class="text-slate-400 text-[11px] leading-normal m-0 font-normal">
-                                Notice: Intention to checkout must be submitted <strong class="text-red-300">1 - 2 weeks prior</strong> to your next billing cycle.
-                            </p>
-                            <div class="p-2 bg-red-950/40 border border-red-900/40 rounded-xl text-[10px] text-red-300/90 font-medium leading-relaxed">
-                                Vacating request processes will provide access parameters inside the building until <span class="font-bold underline">August 17, 2026</span>.
-                            </div>
+                            <div class="flex items-center space-x-2 text-red-400 font-bold"><i class="fa-solid fa-right-from-bracket text-sm"></i><h3 class="text-sm font-bold m-0 tracking-tight">Terminate Tenancy</h3></div>
+                            <p class="text-slate-400 text-[11px] leading-normal m-0 font-normal">Notice: Intention to checkout must be submitted <strong class="text-red-300">1 - 2 weeks prior</strong> to your next billing cycle.</p>
                         </div>
-                        <button type="submit" class="w-full bg-[#e02424] hover:bg-[#c81e1e] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer select-none transition-colors shadow-md">
-                            End Rent Term
-                        </button>
+                        <button type="submit" class="w-full bg-[#e02424] hover:bg-[#c81e1e] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer select-none transition-colors shadow-md">End Rent Term</button>
                     </form>
-
                 </div>
-
             </div>
         <% } %>
-
     </div>
 </div>
 

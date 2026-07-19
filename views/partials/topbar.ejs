@@ -1,183 +1,219 @@
 <!--Global Header Interface Navigation Bar-->
-<nav class="w-full bg-[#3b4276] px-6 md:px-12 py-4 shadow-md sticky top-0 z-50 select-none box-border flex items-center justify-between">
+<nav class="w-full bg-[#3b4276] px-6 md:px-12 py-4 shadow-md sticky top-0 z-40 select-none box-border flex items-center justify-between">
     <div class="w-full flex justify-between items-center h-[44px]">
-        
-        <!--Brand Branding Identity Logo Segment-->
         <div class="flex items-center space-x-8">
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
-                .ams-topbar-logo {
-                    font-family: 'Playfair Display', Georgia, serif !important;
-                }
+                .ams-topbar-logo { font-family: 'Playfair Display', Georgia, serif !important; }
             </style>
-            <a href="/home" class="ams-topbar-logo text-white text-3xl italic font-bold tracking-wider no-underline transition-transform duration-200 hover:scale-105">
-                AMS
-            </a>
-
-            <!--Central Links Menu (My Room is hidden unless they have an active application)-->
+            <a href="/home" class="ams-topbar-logo text-white text-3xl italic font-bold tracking-wider no-underline transition-transform duration-200 hover:scale-105">AMS</a>
             <div class="hidden md:flex items-center space-x-6">
-                <a href="/home" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">
-                    Home
-                </a>
-                
-                <!--Only show My Room Hub to active/pending tenants-->
+                <a href="/home" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">Home</a>
                 <% if (user && typeof hasRentedRoom !== 'undefined' && hasRentedRoom) { %>
-                    <a href="/my-room" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">
-                        My Room Hub
-                    </a>
+                    <a href="/my-room" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">My Room Hub</a>
+                <% } %>
+                <!-- Visible Only for Current/Past Tenants -->
+                <% if (typeof hasHistory !== 'undefined' && hasHistory) { %>
+                    <a href="/transaction-history" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">Transaction History</a>
                 <% } %>
             </div>
         </div>
 
-        <!--Right Side Action Section-->
         <div class="flex items-center space-x-4">
             <% if (user) { %>
-                <!--Dynamic Notification Bell Component-->
+                <% if (user.role !== 'admin') { %>
                 <div class="relative inline-block text-left" id="notification-area">
-                    <button 
-                        type="button"
-                        onclick="toggleNotificationDropdown(event)"
-                        class="relative w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-white flex items-center justify-center border-0 cursor-pointer transition-colors outline-none"
-                    >
+                    <button type="button" onclick="toggleNotificationDropdown(event)" class="relative w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 text-white flex items-center justify-center border-0 cursor-pointer transition-colors outline-none">
                         <i class="fa-solid fa-bell"></i>
-                        <% if (announcements && announcements.length > 0) { %>
-                            <span class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-pulse">
-                                <%= announcements.length %>
-                            </span>
+                        <% if (typeof unreadCount !== 'undefined' && unreadCount > 0) { %>
+                            <span id="unread-badge" class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-pulse"><%= unreadCount %></span>
                         <% } %>
                     </button>
 
-                    <!--Notification Dropdown Panel-->
-                    <div id="notification-dropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 text-left flex flex-col max-h-[420px]">
-                        <div class="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                            <span class="font-bold text-slate-800 text-sm">Notifications</span>
+                    <div id="notification-dropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 text-left flex flex-col max-h-[480px]">
+                        <!-- Enhanced Notification Header -->
+                        <div class="px-4 py-2 border-b border-slate-100 flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-800 text-sm">Notifications</span>
+                                <a href="/notifications/archived" class="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold no-underline"><i class="fa-solid fa-box-archive mr-1"></i>View Archive</a>
+                            </div>
+                            <% if (announcements && announcements.length > 0) { %>
+                                <div class="flex gap-2" id="bulk-actions">
+                                    <button onclick="readAllNotifs()" class="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[9px] font-bold py-1.5 rounded border border-slate-200 cursor-pointer transition-colors">Mark All Read</button>
+                                    <button onclick="clearAllNotifs()" class="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[9px] font-bold py-1.5 rounded border border-rose-200 cursor-pointer transition-colors">Clear All</button>
+                                </div>
+                            <% } %>
                         </div>
-                        
-                        <div class="flex-grow overflow-y-auto divide-y divide-slate-50">
+
+                        <div class="flex-grow overflow-y-auto divide-y divide-slate-50" id="notif-list">
                             <% if (announcements && announcements.length > 0) { %>
                                 <% announcements.forEach(function(notif) { %>
-                                    <div class="p-3.5 flex items-start space-x-3 transition-colors hover:bg-slate-50">
+                                    <div id="notif-item-<%= notif._id %>" class="notif-card p-3.5 flex items-start space-x-3 transition-colors hover:bg-slate-50 relative group cursor-pointer <%= notif.isRead ? 'opacity-60' : 'bg-indigo-50/30' %>" onclick="openNotifModal('<%= notif._id %>', '<%= notif.title.replace(/'/g, "\\'") %>', '<%= notif.body.replace(/'/g, "\\'") %>')">
                                         <div class="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center shrink-0">
                                             <i class="fa-solid fa-bullhorn text-xs"></i>
                                         </div>
-                                        <div class="min-w-0 flex-1">
-                                            <p class="text-xs m-0 leading-snug font-bold text-slate-800"><%= notif.title %></p>
-                                            <p class="text-[11px] text-slate-500 m-0 mt-0.5 leading-normal"><%= notif.body %></p>
+                                        <div class="min-w-0 flex-1 pr-6">
+                                            <div class="flex justify-between items-center mb-0.5">
+                                                <p class="text-xs m-0 leading-snug font-bold text-slate-800 truncate"><%= notif.title %></p>
+                                                <% if (!notif.isRead) { %><span class="unread-dot w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span><% } %>
+                                            </div>
+                                            <p class="text-[11px] text-slate-500 m-0 leading-normal truncate"><%= notif.body %></p>
                                         </div>
+                                        <button onclick="clearNotif(event, '<%= notif._id %>')", class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 bg-transparent border-0 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Clear">
+                                            <i class="fa-solid fa-xmark"></i>
+                                        </button>
                                     </div>
                                 <% }); %>
                             <% } else { %>
-                                <div class="py-12 text-center text-slate-400 text-xs italic">
-                                    No new notifications
-                                </div>
+                                <div class="py-12 text-center text-slate-400 text-xs italic">No new notifications</div>
                             <% } %>
                         </div>
                     </div>
                 </div>
+                <% } %>
 
-                <!--Polished Custom Dropdown matching JSX Design-->
                 <div class="relative inline-block text-left" id="profile-dropdown-area">
-                    <button
-                        type="button"
-                        onclick="toggleProfileDropdown(event)"
-                        class="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 select-none outline-none"
-                    >
+                    <button type="button" onclick="toggleProfileDropdown(event)" class="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 outline-none">
                         <span class="font-bold text-sm tracking-wide"><%= user.first_name %></span>
-                        
-                        <div class="w-9 h-9 rounded-full bg-indigo-600 border border-white/20 text-white flex items-center justify-center text-xs font-black tracking-wider shadow-inner">
-                            <%= user.first_name[0] %><%= user.last_name[0] %>
-                        </div>
-                        
+                        <div class="w-9 h-9 rounded-full bg-indigo-600 border border-white/20 text-white flex items-center justify-center text-xs font-black tracking-wider shadow-inner"><%= user.first_name[0] %><%= user.last_name[0] %></div>
                         <i class="fa-solid fa-chevron-down text-[10px] opacity-70 transition-transform duration-200" id="profile-chevron"></i>
                     </button>
 
-                    <!--Account Submenu Selection List Panel-->
                     <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden text-left">
-                        <!--Display User Details-->
                         <div class="p-3 border-b border-slate-100 bg-slate-50 select-none">
                             <span class="text-xs font-bold text-slate-700 block truncate"><%= user.first_name %> <%= user.last_name %></span>
                             <span class="text-[10px] text-slate-400 block truncate font-medium mt-0.5"><%= user.email_address %></span>
                         </div>
-                        
-                        <!--Menu Options-->
-                        <a
-                            href="/profile-settings"
-                            class="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold no-underline box-border"
-                        >
-                            <i class="fa-solid fa-cog text-slate-400 text-xs"></i>
-                            <span>Profile Settings</span>
+                        <% if (user.role !== 'admin') { %>
+                        <a href="/profile-settings" class="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors no-underline">
+                            <i class="fa-solid fa-cog text-slate-400 text-xs"></i><span>Profile Settings</span>
                         </a>
-                        
+                        <% } %>
                         <div class="border-t border-slate-100 my-1"></div>
-                        
-                        <a
-                            href="/logout"
-                            class="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold no-underline box-border"
-                        >
-                            <i class="fa-solid fa-sign-out-alt text-xs"></i>
-                            <span>Logout</span>
+                        <a href="/logout" class="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors no-underline font-bold">
+                            <i class="fa-solid fa-sign-out-alt text-xs"></i><span>Logout</span>
                         </a>
                     </div>
                 </div>
             <% } else { %>
-                <!--Sign In Action Link-->
-                <a href="/login" class="bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-2.5 rounded-xl text-xs border-0 cursor-pointer no-underline transition-all duration-150">
-                    Sign In
-                </a>
+                <a href="/login" class="bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-2.5 rounded-xl text-xs no-underline transition-all duration-150">Sign In</a>
             <% } %>
         </div>
     </div>
 </nav>
 
-<!--Native JavaScript Event Listeners to Handle Clicks and Outside Clicks Flawlessly-->
+<!-- Notification Reader Modal -->
+<div id="notif-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all">
+    <div class="bg-white w-full max-w-md rounded-3xl border border-slate-100 shadow-2xl p-6 md:p-8 text-left relative">
+        <button type="button" onclick="document.getElementById('notif-modal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="flex items-center gap-3 mb-4 border-b border-slate-100 pb-4">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-500 flex items-center justify-center shrink-0"><i class="fa-solid fa-bullhorn text-sm"></i></div>
+            <h3 id="modal-notif-title" class="text-lg font-bold text-slate-800 m-0">Title</h3>
+        </div>
+        <p id="modal-notif-body" class="text-sm text-slate-600 leading-relaxed m-0 whitespace-pre-wrap">Body</p>
+        <div class="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+            <button onclick="document.getElementById('notif-modal').classList.add('hidden')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-2 rounded-xl text-xs cursor-pointer border-0 transition-all">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
     function toggleProfileDropdown(e) {
         e.stopPropagation();
-        const dropdown = document.getElementById('profile-dropdown');
-        const chevron = document.getElementById('profile-chevron');
-        const isHidden = dropdown.classList.contains('hidden');
-        
-        // Close other dropdowns
-        document.getElementById('notification-dropdown').classList.add('hidden');
-        
-        if (isHidden) {
-            dropdown.classList.remove('hidden');
-            chevron.classList.add('rotate-180');
-        } else {
-            dropdown.classList.add('hidden');
-            chevron.classList.remove('rotate-180');
-        }
+        document.getElementById('profile-dropdown').classList.toggle('hidden');
+        document.getElementById('profile-chevron').classList.toggle('rotate-180');
+        const nd = document.getElementById('notification-dropdown');
+        if(nd) nd.classList.add('hidden');
     }
 
     function toggleNotificationDropdown(e) {
         e.stopPropagation();
-        const dropdown = document.getElementById('notification-dropdown');
-        const isHidden = dropdown.classList.contains('hidden');
-        
-        // Close other dropdowns
+        document.getElementById('notification-dropdown').classList.toggle('hidden');
         document.getElementById('profile-dropdown').classList.add('hidden');
         document.getElementById('profile-chevron').classList.remove('rotate-180');
-        
-        if (isHidden) {
-            dropdown.classList.remove('hidden');
-        } else {
-            dropdown.classList.add('hidden');
-        }
     }
 
-    // Handle outside clicks to close active menus immediately
     document.addEventListener('click', function(event) {
-        const profileArea = document.getElementById('profile-dropdown-area');
-        const notificationArea = document.getElementById('notification-area');
-        
-        if (profileArea && !profileArea.contains(event.target)) {
+        const pArea = document.getElementById('profile-dropdown-area');
+        const nArea = document.getElementById('notification-area');
+        if (pArea && !pArea.contains(event.target)) {
             document.getElementById('profile-dropdown').classList.add('hidden');
-            const chevron = document.getElementById('profile-chevron');
-            if (chevron) chevron.classList.remove('rotate-180');
+            document.getElementById('profile-chevron').classList.remove('rotate-180');
         }
-        
-        if (notificationArea && !notificationArea.contains(event.target)) {
+        if (nArea && !nArea.contains(event.target)) {
             document.getElementById('notification-dropdown').classList.add('hidden');
         }
     });
+
+    function openNotifModal(id, title, body) {
+        document.getElementById('modal-notif-title').innerText = title;
+        document.getElementById('modal-notif-body').innerText = body;
+        document.getElementById('notif-modal').classList.remove('hidden');
+
+        const item = document.getElementById(`notif-item-${id}`);
+        if(item && !item.classList.contains('opacity-60')) {
+            const dot = item.querySelector('.unread-dot');
+            if(dot) dot.remove();
+            item.classList.remove('bg-indigo-50/30');
+            item.classList.add('opacity-60');
+            fetch(`/notifications/${id}/read`, { method: 'POST' });
+            
+            const badge = document.getElementById('unread-badge');
+            if(badge) {
+                let count = parseInt(badge.innerText) - 1;
+                if(count > 0) badge.innerText = count;
+                else badge.remove();
+            }
+        }
+    }
+
+    function clearNotif(e, id) {
+        e.stopPropagation();
+        const item = document.getElementById(`notif-item-${id}`);
+        const wasUnread = !item.classList.contains('opacity-60');
+        item.remove();
+        fetch(`/notifications/${id}/clear`, { method: 'POST' });
+
+        if(wasUnread) {
+            const badge = document.getElementById('unread-badge');
+            if(badge) {
+                let count = parseInt(badge.innerText) - 1;
+                if(count > 0) badge.innerText = count;
+                else badge.remove();
+            }
+        }
+        
+        checkEmptyNotifs();
+    }
+
+    function readAllNotifs() {
+        fetch('/notifications/read-all', { method: 'POST' }).then(() => {
+            const dots = document.querySelectorAll('.unread-dot');
+            dots.forEach(dot => dot.remove());
+            const cards = document.querySelectorAll('.notif-card');
+            cards.forEach(c => { c.classList.remove('bg-indigo-50/30'); c.classList.add('opacity-60'); });
+            const badge = document.getElementById('unread-badge');
+            if(badge) badge.remove();
+        });
+    }
+
+    function clearAllNotifs() {
+        fetch('/notifications/clear-all', { method: 'POST' }).then(() => {
+            document.getElementById('notif-list').innerHTML = '';
+            const badge = document.getElementById('unread-badge');
+            if(badge) badge.remove();
+            checkEmptyNotifs();
+        });
+    }
+
+    function checkEmptyNotifs() {
+        const list = document.getElementById('notif-list');
+        if(list.children.length === 0) {
+            list.innerHTML = '<div class="py-12 text-center text-slate-400 text-xs italic">No new notifications</div>';
+            const bulk = document.getElementById('bulk-actions');
+            if(bulk) bulk.remove();
+        }
+    }
 </script>

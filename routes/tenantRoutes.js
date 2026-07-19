@@ -9,336 +9,278 @@ const Announcement = require('../models/Announcement');
 const Transaction = require('../models/Transaction');
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, './uploads/applications/');
-    },
+    destination: (req, file, cb) => cb(null, './uploads/applications/'),
     filename: (req, file, cb) => {
         const lName = (req.body.lastName || 'User').replace(/[^a-zA-Z]/g, '');
         const fName = (req.body.firstName || 'Resident').replace(/[^a-zA-Z]/g, '');
-        
-        let documentType = 'Document';
-        if (file.fieldname === 'validIdFrontFile') documentType = 'Front_ID';
-        if (file.fieldname === 'validIdBackFile') documentType = 'Back_ID';
-        if (file.fieldname === 'nbiFile') documentType = 'NBI_Clearance';
-        
-        const ext = path.extname(file.originalname).toLowerCase();
-        cb(null, `${lName}-${fName}_${documentType}${ext}`);
+        cb(null, `${lName}-${fName}_${Date.now()}${path.extname(file.originalname)}`);
     }
 });
 const upload = multer({ storage: storage });
 
 const isTenant = (req, res, next) => {
-    if (!req.session.user) {
-        return res.redirect('/login');
-    }
-    if (req.session.user.role === 'admin') {
-        return res.redirect('/admin/dashboard');
-    }
+    if (!req.session.user) return res.redirect('/login');
+    if (req.session.user.role === 'admin') return res.redirect('/admin/dashboard');
     next();
 };
 
-router.get('/home', isTenant, async (req, res) => {
+// Core Mathematical Engine for Dynamic Rent Limits
+async function getTenantBillingContext(userId) {
+    const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+    const activeTenant = await Tenant.findOne({ user: userId });
+    
+    const allRentPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'completed' }).sort({ createdAt: 1 });
+    const pendingPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'pending' });
+    const totalPaidMonths = allRentPayments.length + pendingPayments.length;
+
+    let startD = application ? new Date(application.createdAt) : new Date();
+    if (allRentPayments.length > 0) startD = new Date(allRentPayments[0].createdAt);
+    
+    const billingDay = startD.getDate();
+    const paidUpToDate = new Date(startD.getFullYear(), startD.getMonth() + totalPaidMonths, billingDay);
+    const rentDueDateLabel = paidUpToDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const currentCycleStart = new Date(startD.getFullYear(), startD.getMonth() + (totalPaidMonths > 0 ? totalPaidMonths - 1 : 0), billingDay).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    let contractMaxMonths = application ? application.monthsOfRent : 0;
+    if (activeTenant && activeTenant.contactNo.includes("EXT:")) {
+        const rawSavedMonth = activeTenant.contactNo.split("EXT:")[1];
+        const [extYear, extMonth] = rawSavedMonth.split("-");
+        if (extYear && extMonth) contractMaxMonths = (parseInt(extYear) - startD.getFullYear()) * 12 + (parseInt(extMonth) - startD.getMonth()) + 1;
+    }
+
+    const today = new Date();
+    let monthsPassed = (today.getFullYear() - startD.getFullYear()) * 12 + (today.getMonth() - startD.getMonth());
+    if (today.getDate() < billingDay) monthsPassed--;
+    if (monthsPassed < 0) monthsPassed = 0;
+
+    let canPayRent = true;
+    let rentLockReason = "";
+
+    if (totalPaidMonths >= contractMaxMonths) {
+        canPayRent = false;
+        rentLockReason = `Contract fully paid up to ${rentDueDateLabel}. Max contract term reached.`;
+    } else if (totalPaidMonths > monthsPassed + 1) {
+        canPayRent = false;
+        rentLockReason = `You have paid in advance up to ${rentDueDateLabel}. Maximum 1-month advance payment limit reached.`;
+    }
+
+    return { application, activeTenant, totalPaidMonths, contractMaxMonths, rentDueDateLabel, currentCycleStart, canPayRent, rentLockReason };
+}
+
+// ==================================================
+// NOTIFICATION SYSTEM & ARCHIVE
+// ==================================================
+router.post('/notifications/:id/read', isTenant, async (req, res) => {
+    await User.findByIdAndUpdate(req.session.user._id || req.session.user.id, { $addToSet: { readAnnouncements: req.params.id } });
+    res.json({ success: true });
+});
+
+router.post('/notifications/:id/clear', isTenant, async (req, res) => {
+    await User.findByIdAndUpdate(req.session.user._id || req.session.user.id, { $addToSet: { clearedAnnouncements: req.params.id } });
+    res.json({ success: true });
+});
+
+router.post('/notifications/read-all', isTenant, async (req, res) => {
     try {
         const userId = req.session.user._id || req.session.user.id;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        if (application && (application.status === 'accepted' || application.status === 'pending' || application.status === 'active')) {
-            return res.redirect('/my-room');
-        }
+        const userDoc = await User.findById(userId);
+        const hasApp = await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'active'] } });
+        let filter = ['All']; if (hasApp) filter.push('Tenants'); else filter.push('Non-Tenants');
 
-        const Room = require('../models/Room');
-        const availableRoomsCount = await Room.countDocuments({ isAvailable: true });
-        res.render('home', { availableRoomsCount, hasRentedRoom: false, user: req.session.user });
-    } catch (err) {
-        res.render('home', { availableRoomsCount: 0, hasRentedRoom: false, user: req.session.user });
-    }
+        const activeNotifs = await Announcement.find({
+            status: 'sent', createdAt: { $gte: userDoc.createdAt },
+            $or: [{ sendTo: { $in: filter } }, { sendTo: 'Specific', targetUser: userId }],
+            _id: { $nin: userDoc.clearedAnnouncements || [] }
+        });
+        
+        await User.findByIdAndUpdate(userId, { $addToSet: { readAnnouncements: { $each: activeNotifs.map(a => a._id) } } });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+router.post('/notifications/clear-all', isTenant, async (req, res) => {
+    try {
+        const userId = req.session.user._id || req.session.user.id;
+        const userDoc = await User.findById(userId);
+        const hasApp = await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'active'] } });
+        let filter = ['All']; if (hasApp) filter.push('Tenants'); else filter.push('Non-Tenants');
+
+        const activeNotifs = await Announcement.find({
+            status: 'sent', createdAt: { $gte: userDoc.createdAt },
+            $or: [{ sendTo: { $in: filter } }, { sendTo: 'Specific', targetUser: userId }],
+            _id: { $nin: userDoc.clearedAnnouncements || [] }
+        });
+
+        await User.findByIdAndUpdate(userId, { $addToSet: { clearedAnnouncements: { $each: activeNotifs.map(a => a._id) } } });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+router.get('/notifications/archived', isTenant, async (req, res) => {
+    const userId = req.session.user._id || req.session.user.id;
+    const userDoc = await User.findById(userId);
+    const archivedAnnouncements = await Announcement.find({ _id: { $in: userDoc.clearedAnnouncements || [] } }).sort({ createdAt: -1 });
+    res.render('archivedNotifications', { archivedAnnouncements, hasRentedRoom: !!(await RentApplication.findOne({ user: userId })), user: req.session.user });
+});
+
+// ==================================================
+// TRANSACTION HISTORY (TENANT SIDE)
+// ==================================================
+router.get('/transaction-history', isTenant, async (req, res) => {
+    const userId = req.session.user._id || req.session.user.id;
+    if (!(await Tenant.findOne({ user: userId }))) return res.redirect('/home');
+    const transactions = await Transaction.find({ user: userId }).sort({ createdAt: -1 });
+    res.render('transactionHistory', { transactions, hasRentedRoom: !!(await RentApplication.findOne({ user: userId })), user: req.session.user });
+});
+
+// ==================================================
+// GENERAL TENANT ROUTES
+// ==================================================
+router.get('/home', isTenant, async (req, res) => {
+    const userId = req.session.user._id || req.session.user.id;
+    const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+    if (application && (application.status === 'accepted' || application.status === 'pending' || application.status === 'active')) return res.redirect('/my-room');
+    const Room = require('../models/Room');
+    res.render('home', { availableRoomsCount: await Room.countDocuments({ isAvailable: true }), hasRentedRoom: false, user: req.session.user });
 });
 
 router.get('/preview', isTenant, async (req, res) => {
-    try {
-        const Room = require('../models/Room');
-        const rooms = await Room.find({ isAvailable: true }).sort({ roomName: 1 });
-        const userId = req.session.user._id || req.session.user.id;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        const hasRentedRoom = !!application;
-
-        res.render('preview', { rooms, hasRentedRoom, user: req.session.user });
-    } catch (err) {
-        res.status(500).send('Error');
-    }
+    const Room = require('../models/Room');
+    const rooms = await Room.find({ isAvailable: true }).sort({ roomName: 1 });
+    res.render('preview', { rooms, hasRentedRoom: !!(await RentApplication.findOne({ user: req.session.user._id || req.session.user.id })), user: req.session.user });
 });
 
 router.get('/rent-application', isTenant, async (req, res) => {
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const existingApp = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        if (existingApp) {
-            return res.redirect('/my-room');
-        }
-        const roomSelection = req.query.room || 'Room A';
-        res.render('rentApplication', { roomSelection, user: req.session.user, hasRentedRoom: false });
-    } catch (err) {
-        res.redirect('/home');
-    }
+    if (await RentApplication.findOne({ user: req.session.user._id || req.session.user.id })) return res.redirect('/my-room');
+    res.render('rentApplication', { roomSelection: req.query.room || 'Room A', user: req.session.user, hasRentedRoom: false });
 });
 
-router.post('/rent-application', isTenant, upload.fields([
-    { name: 'validIdFrontFile', maxCount: 1 },
-    { name: 'validIdBackFile', maxCount: 1 },
-    { name: 'nbiFile', maxCount: 1 }
-]), async (req, res) => {
+router.post('/rent-application', isTenant, upload.fields([{ name: 'validIdFrontFile', maxCount: 1 }, { name: 'validIdBackFile', maxCount: 1 }, { name: 'nbiFile', maxCount: 1 }]), async (req, res) => {
     const { firstName, lastName, suffix, gender, contactNo, occupants, monthsOfRent, roomRequested } = req.body;
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const newApplication = new RentApplication({
-            user: userId,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            suffix: suffix.trim(),
-            gender,
-            contactNo: contactNo.trim(),
-            occupants: parseInt(occupants),
-            monthsOfRent: parseInt(monthsOfRent),
-            roomRequested: roomRequested,
-            documents: {
-                validIdFrontPath: req.files['validIdFrontFile'][0].path.replace(/\\/g, '/'),
-                validIdBackPath: req.files['validIdBackFile'][0].path.replace(/\\/g, '/'),
-                nbiClearancePath: req.files['nbiFile'][0].path.replace(/\\/g, '/')
-            }
-        });
-        await newApplication.save();
-        res.redirect('/my-room');
-    } catch (err) {
-        res.status(500).send('Error');
-    }
+    await new RentApplication({
+        user: req.session.user._id || req.session.user.id,
+        firstName: firstName.trim(), lastName: lastName.trim(), suffix: suffix.trim(), gender, contactNo: contactNo.trim(), occupants: parseInt(occupants), monthsOfRent: parseInt(monthsOfRent), roomRequested,
+        documents: { validIdFrontPath: req.files['validIdFrontFile'][0].path.replace(/\\/g, '/'), validIdBackPath: req.files['validIdBackFile'][0].path.replace(/\\/g, '/'), nbiClearancePath: req.files['nbiFile'][0].path.replace(/\\/g, '/') }
+    }).save();
+    res.redirect('/my-room');
 });
 
-// PARSES MONTH LABELS DYNAMICALLY AND INJECTS THE ENFORCED 17TH BINDING DAY
 router.get('/my-room', isTenant, async (req, res) => {
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        if (!application) return res.redirect('/preview');
-        
-        const completedTx = await Transaction.findOne({ user: userId, type: 'deposit', status: 'completed' });
-        const pendingTx = await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending' });
+    const userId = req.session.user._id || req.session.user.id;
+    const ctx = await getTenantBillingContext(userId);
+    if (!ctx.application) return res.redirect('/preview');
 
-        const tenantProfile = await Tenant.findOne({ user: userId });
-        
-        let contractEndDateLabel = "02 / 16 / 2027";
-        if (tenantProfile && tenantProfile.contactNo && tenantProfile.contactNo.includes("EXT:")) {
-            const rawSavedMonth = tenantProfile.contactNo.split("EXT:")[1]; // returns "YYYY-MM"
-            const monthParts = rawSavedMonth.split("-");
-            if (monthParts.length === 2) {
-                // Pin the display output cleanly to the 17th day threshold of that month
-                contractEndDateLabel = `${monthParts[1]} / 17 / ${monthParts[0]}`;
-            }
-        }
-
-        res.render('myRoom', { 
-            application, 
-            hasRentedRoom: true, 
-            user: req.session.user,
-            isPaid: !!completedTx,
-            isWaitingConfirmation: !!pendingTx,
-            contractEndDateLabel
-        });
-    } catch (err) {
-        res.status(500).send('Server error');
-    }
+    res.render('myRoom', { 
+        application: ctx.application, hasRentedRoom: true, user: req.session.user,
+        isPaid: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'completed' })),
+        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending' })),
+        currentCycleStart: ctx.currentCycleStart, rentDueDateLabel: ctx.rentDueDateLabel,
+        totalPaidMonths: ctx.totalPaidMonths, contractMaxMonths: ctx.contractMaxMonths
+    });
 });
 
 router.get('/view-contract', isTenant, async (req, res) => {
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        if (!application) return res.redirect('/home');
+    const application = await RentApplication.findOne({ user: req.session.user._id || req.session.user.id }).sort({ createdAt: -1 });
+    if (!application) return res.redirect('/home');
+    const baseRent = application.roomRequested.match(/Room [I-N]/) ? 3500 : 4000;
+    res.render('viewContract', { application: { ...application._doc, monthlyRent: baseRent }, hasRentedRoom: true, user: req.session.user });
+});
 
-        const baseRent = application.roomRequested.includes('Room I') || application.roomRequested.includes('Room J') || 
-                         application.roomRequested.includes('Room K') || application.roomRequested.includes('Room L') || 
-                         application.roomRequested.includes('Room M') || application.roomRequested.includes('Room N') ? 3500 : 4000;
-
-        const safeApplicationObj = { ...application._doc, monthlyRent: baseRent };
-        res.render('viewContract', { application: safeApplicationObj, hasRentedRoom: true, user: req.session.user });
-    } catch (err) {
-        res.status(500).send('Error');
+router.post('/extend-lease', isTenant, async (req, res) => {
+    const tenantProfile = await Tenant.findOne({ user: req.session.user._id || req.session.user.id });
+    if (tenantProfile) {
+        tenantProfile.contactNo = `${tenantProfile.contactNo.split("EXT:")[0].trim()} EXT:${req.body.extendEndMonth}`;
+        await tenantProfile.save();
     }
+    res.redirect('/my-room');
+});
+
+router.post('/terminate-lease', isTenant, async (req, res) => {
+    await Tenant.findOneAndUpdate({ user: req.session.user._id || req.session.user.id }, { status: 'Pending Moveout' });
+    res.redirect('/my-room');
 });
 
 router.get('/pay-bills', isTenant, async (req, res) => {
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        if (!application) return res.redirect('/home');
+    const userId = req.session.user._id || req.session.user.id;
+    const ctx = await getTenantBillingContext(userId);
+    if (!ctx.application) return res.redirect('/home');
 
-        const baseRent = application.roomRequested.includes('Room I') || application.roomRequested.includes('Room J') || 
-                         application.roomRequested.includes('Room K') || application.roomRequested.includes('Room L') || 
-                         application.roomRequested.includes('Room M') || application.roomRequested.includes('Room N') ? 3500 : 4000;
-
-        const pendingTx = await Transaction.findOne({ user: userId, status: 'pending', type: 'deposit' });
-        const isWaitingConfirmation = !!pendingTx;
-
-        const activeTenant = await Tenant.findOne({ user: userId });
-        const utilityBills = await Transaction.find({ user: userId, status: 'pending', type: 'utilities' });
-        
-        const today = new Date();
-        const currentPeriodLabel = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        
-        const targetDue = new Date(today.getFullYear(), today.getMonth() + 1, 17);
-        const rentDueDateLabel = targetDue.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-        res.render('payBills', { 
-            application, 
-            baseRent, 
-            isFullyBoarded: !!activeTenant, 
-            hasRentedRoom: true, 
-            user: req.session.user, 
-            isWaitingConfirmation,
-            utilityBills,
-            currentPeriodLabel,
-            rentDueDateLabel
-        });
-    } catch (err) {
-        res.status(500).send('Error');
-    }
+    const baseRent = ctx.application.roomRequested.match(/Room [I-N]/) ? 3500 : 4000;
+    const actualBaseRent = ctx.canPayRent ? baseRent : 0;
+    const utilityBills = await Transaction.find({ user: userId, status: 'pending', type: 'utilities' });
+    
+    res.render('payBills', { 
+        application: ctx.application, actualBaseRent, canPayRent: ctx.canPayRent, rentLockReason: ctx.rentLockReason, 
+        isFullyBoarded: !!ctx.activeTenant, hasRentedRoom: true, user: req.session.user, 
+        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, status: 'pending', type: { $in: ['deposit', 'rent'] } })),
+        utilityBills, currentPeriodLabel: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        rentDueDateLabel: ctx.rentDueDateLabel
+    });
 });
 
 router.post('/pay-bills', isTenant, async (req, res) => {
     const { amount, paymentMethod } = req.body;
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        if (!application) return res.status(404).json({ error: 'Application not found' });
+    const userId = req.session.user._id || req.session.user.id;
+    const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+    const initialTxStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
 
-        const initialTxStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
+    const utilityBills = await Transaction.find({ user: userId, status: 'pending', type: 'utilities' });
+    let utilsTotal = 0; utilityBills.forEach(b => utilsTotal += b.amount);
+    
+    if (parseFloat(amount) > utilsTotal) {
+        const activeTenant = await Tenant.findOne({ user: userId });
+        await new Transaction({
+            user: userId, roomName: application.roomRequested, amount: parseFloat(amount) - utilsTotal, 
+            type: activeTenant ? 'rent' : 'deposit', paymentMethod: paymentMethod, status: initialTxStatus
+        }).save();
+    }
 
-        const newPaymentTx = new Transaction({
-            user: userId,
-            roomName: application.roomRequested,
-            amount: parseFloat(amount),
-            type: 'deposit',
-            paymentMethod: paymentMethod,
-            status: initialTxStatus
-        });
-        await newPaymentTx.save();
+    for (let bill of utilityBills) {
+        if (initialTxStatus === 'completed') { bill.status = 'completed'; await bill.save(); }
+    }
 
-        if (initialTxStatus === 'completed') {
-            const Room = require('../models/Room');
-            const room = await Room.findOne({ roomName: application.roomRequested });
-            
-            const tenantExists = await Tenant.findOne({ user: userId });
-            if (!tenantExists) {
-                const newTenantProfile = new Tenant({
-                    user: userId,
-                    suffix: application.suffix || '',
-                    gender: application.gender || 'Other',
-                    contactNo: application.contactNo,
-                    room: room ? room._id : null
-                });
-                await newTenantProfile.save();
-            }
+    if (initialTxStatus === 'completed') {
+        const Room = require('../models/Room');
+        const room = await Room.findOne({ roomName: application.roomRequested });
+        if (!(await Tenant.findOne({ user: userId }))) {
+            let sanitizedGender = 'Other';
+            if (application.gender && application.gender.trim().toLowerCase() === 'male') sanitizedGender = 'Male';
+            if (application.gender && application.gender.trim().toLowerCase() === 'female') sanitizedGender = 'Female';
+            await new Tenant({ user: userId, suffix: application.suffix || '', gender: sanitizedGender, contactNo: application.contactNo, room: room ? room._id : null }).save();
         }
-
-        return res.json({ status: initialTxStatus, amount: amount, method: paymentMethod });
-    } catch (err) {
-        console.error("Payment registration failure detail log:", err);
-        return res.status(500).json({ error: 'Failed execution due to mapping issues.' });
     }
+    return res.json({ status: initialTxStatus, amount, method: paymentMethod });
 });
 
-// CAPTURES THE YYYY-MM SELECTION PAYLOAD AND SAFELY WRITES IT TO THE LEASE ACCOUNT PROFILE
-router.post('/extend-lease', isTenant, async (req, res) => {
-    const { extendEndMonth } = req.body; // Receives selected string: "YYYY-MM"
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        
-        const tenantProfile = await Tenant.findOne({ user: userId });
-        if (tenantProfile) {
-            const baseContact = tenantProfile.contactNo.split("EXT:")[0].trim();
-            tenantProfile.contactNo = `${baseContact} EXT:${extendEndMonth}`;
-            await tenantProfile.save();
-        }
-        
-        res.redirect('/my-room');
-    } catch (err) {
-        console.error("Lease extension month submission error:", err);
-        res.redirect('/my-room');
-    }
-});
-
-router.post('/terminate-lease', isTenant, async (req, res) => {
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        
-        await Tenant.findOneAndUpdate(
-            { user: userId },
-            { $set: { status: 'Pending Moveout' } },
-            { returnDocument: 'after' }
-        );
-        
-        res.redirect('/my-room');
-    } catch (err) {
-        console.error("Tenancy termination dispatch fault:", err);
-        res.redirect('/my-room');
-    }
-});
-
-//==================================================
-// USER PROFILE SETTINGS MANAGEMENT
-//==================================================
 router.get('/profile-settings', isTenant, async (req, res) => {
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const dbUser = await User.findById(userId);
-        if (!dbUser) return res.render('profileSettings', { dbUser: {}, successMessage: null, errorMessage: 'Error', hasRentedRoom: false, user: req.session.user });
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        const tenantData = await Tenant.findOne({ user: userId });
-        res.render('profileSettings', { dbUser: { ...dbUser._doc, suffix: tenantData?.suffix || '', gender: tenantData?.gender || '', contactNo: (tenantData?.contactNo || '').split("EXT:")[0].trim() }, successMessage: null, errorMessage: null, hasRentedRoom: !!application, user: req.session.user });
-    } catch (err) {
-        res.render('profileSettings', { dbUser: {}, successMessage: null, errorMessage: 'Error', hasRentedRoom: false, user: req.session.user });
-    }
+    const userId = req.session.user._id || req.session.user.id;
+    const dbUser = await User.findById(userId);
+    const tenantData = await Tenant.findOne({ user: userId });
+    res.render('profileSettings', { dbUser: { ...dbUser._doc, contactNo: (tenantData?.contactNo || '').split("EXT:")[0].trim(), suffix: tenantData?.suffix || '', gender: tenantData?.gender || '' }, successMessage: null, errorMessage: null, hasRentedRoom: !!(await RentApplication.findOne({ user: userId })), user: req.session.user });
 });
 
 router.post('/profile-settings/update', isTenant, async (req, res) => {
     const { firstName, lastName, suffix, gender, contactNo } = req.body;
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const updatedUser = await User.findByIdAndUpdate(userId, { firstName: firstName.trim(), lastName: lastName.trim() }, { returnDocument: 'after' });
-        req.session.user.first_name = updatedUser.firstName;
-        req.session.user.last_name = updatedUser.lastName;
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        
-        const tenantData = await Tenant.findOne({ user: userId });
-        if (tenantData) {
-            const currentExt = tenantData.contactNo.includes("EXT:") ? " EXT:" + tenantData.contactNo.split("EXT:")[1] : "";
-            tenantData.suffix = suffix.trim();
-            tenantData.gender = gender;
-            tenantData.contactNo = contactNo.trim() + currentExt;
-            await tenantData.save();
-        }
-        res.render('profileSettings', { dbUser: { ...updatedUser._doc, suffix: suffix.trim(), gender, contactNo: contactNo.trim() }, successMessage: 'Success!', errorMessage: null, hasRentedRoom: !!application, user: req.session.user });
-    } catch (err) {
-        res.redirect('/profile-settings');
+    const userId = req.session.user._id || req.session.user.id;
+    const updatedUser = await User.findByIdAndUpdate(userId, { firstName: firstName.trim(), lastName: lastName.trim() }, { returnDocument: 'after' });
+    req.session.user.first_name = updatedUser.firstName; req.session.user.last_name = updatedUser.lastName;
+    const tenantData = await Tenant.findOne({ user: userId });
+    if (tenantData) {
+        tenantData.contactNo = contactNo.trim() + (tenantData.contactNo.includes("EXT:") ? " EXT:" + tenantData.contactNo.split("EXT:")[1] : "");
+        tenantData.suffix = suffix.trim(); tenantData.gender = gender;
+        await tenantData.save();
     }
+    res.redirect('/profile-settings');
 });
 
 router.post('/profile-settings/password', isTenant, async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
-    try {
-        const userId = req.session.user._id || req.session.user.id;
-        const dbUser = await User.findById(userId);
-        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-        const bcrypt = require('bcryptjs');
-
-        if (newPassword.length < 8 || newPassword !== confirmPassword || !(await bcrypt.compare(currentPassword, dbUser.password))) {
-            return res.render('profileSettings', { dbUser, successMessage: null, errorMessage: 'Validation failure issues.', hasRentedRoom: !!application, user: req.session.user });
-        }
-
-        dbUser.password = newPassword;
-        await dbUser.save();
-        res.render('profileSettings', { dbUser, successMessage: 'Password updated successfully!', errorMessage: null, hasRentedRoom: !!application, user: req.session.user });
-    } catch (err) {
-        res.redirect('/profile-settings');
+    const dbUser = await User.findById(req.session.user._id || req.session.user.id);
+    const bcrypt = require('bcryptjs');
+    if (newPassword.length >= 8 && newPassword === confirmPassword && (await bcrypt.compare(currentPassword, dbUser.password))) {
+        dbUser.password = newPassword; await dbUser.save();
     }
+    res.redirect('/profile-settings');
 });
 
 module.exports = router;

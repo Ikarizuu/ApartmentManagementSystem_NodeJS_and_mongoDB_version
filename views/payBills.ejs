@@ -4,7 +4,6 @@
 <div class="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center relative">
     <div class="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
         
-        <!-- Header Section showing dynamic calendar values -->
         <div class="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
                 <h1 class="text-4xl font-sans font-extrabold m-0 tracking-tight select-none text-[#3b4276]">
@@ -26,7 +25,6 @@
                     <% } %>
                 </p>
             </div>
-            <!-- Month and Year Indicator Badge Element Context -->
             <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2 flex items-center gap-2 text-xs font-bold text-indigo-700 w-max self-start sm:self-center select-none shadow-sm">
                 <i class="fa-solid fa-calendar-days text-indigo-400"></i>
                 <span>Billing Period: <%= currentPeriodLabel %></span>
@@ -34,7 +32,6 @@
         </div>
 
         <% if (isWaitingConfirmation) { %>
-            <!-- WAITING LOCKOUT SCREEN VIEW -->
             <div class="w-full max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl p-8 text-center space-y-6">
                 <div class="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mx-auto text-2xl animate-pulse">
                     <i class="fa-solid fa-clock-rotate-left"></i>
@@ -52,7 +49,6 @@
                 </div>
             </div>
         <% } else { %>
-            <!-- BILLING INTERACTION WORKSPACE GRID -->
             <div id="billing-workspace-grid" class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
                 
                 <!-- Left Grid: Billing Items Ledger -->
@@ -61,45 +57,54 @@
                         <h3 class="text-lg font-bold m-0 text-[#3b4276]">Statement Ledger</h3>
                     </div>
 
-                    <!-- Indication of Rent Due Date Info Banner -->
-                    <div class="p-3.5 bg-rose-50 rounded-2xl border border-rose-100 flex gap-2.5 items-center text-rose-700 text-xs select-none">
-                        <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
-                        <span>Lease Account Due Date Deadline: <strong class="underline"><%= rentDueDateLabel %></strong></span>
-                    </div>
+                    <% if (canPayRent || utilityBills.length > 0) { %>
+                        <div class="p-3.5 bg-rose-50 rounded-2xl border border-rose-100 flex gap-2.5 items-center text-rose-700 text-xs select-none shadow-sm">
+                            <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
+                            <span>Current Balance Cycle Goal Deadline: <strong class="underline"><%= rentDueDateLabel %></strong></span>
+                        </div>
+                    <% } %>
 
                     <div class="space-y-4 text-sm font-medium text-slate-600">
                         <% let runningTotal = 0; %>
                         
                         <% if (!isFullyBoarded) { %>
-                            <!-- Onboarding Mode: Display dynamic base downpayment cost details -->
                             <div class="flex justify-between items-center">
                                 <span>Advance Rent Deposit (<%= application.roomRequested %>)</span>
-                                <span class="font-bold text-slate-900">₱<%= baseRent.toLocaleString() %></span>
+                                <span class="font-bold text-slate-900">₱<%= actualBaseRent.toLocaleString() %></span>
                             </div>
-                            <% runningTotal += baseRent; %>
+                            <% runningTotal += actualBaseRent; %>
                             
-                            <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-2.5 items-start text-amber-700 text-xs">
+                            <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-2.5 items-start text-amber-700 text-xs mt-3">
                                 <i class="fa-solid fa-circle-info text-amber-400 mt-0.5"></i>
                                 <span>Utility billing meters (Electricity, Water) will remain unbilled until physical check-in occurs.</span>
                             </div>
                         <% } else { %>
-                            <!-- Standard Active Account Mode: Utilities are bundled and paid strictly together with current month rent cost -->
-                            <div class="flex justify-between items-center border-b border-slate-100/60 pb-2">
-                                <span>Monthly Unit Lease Rent (<%= application.roomRequested %>)</span>
-                                <span class="font-bold text-slate-900">₱<%= baseRent.toLocaleString() %></span>
-                            </div>
-                            <% runningTotal += baseRent; %>
+                            <% if (canPayRent) { %>
+                                <div class="flex justify-between items-center border-b border-slate-100/60 pb-2">
+                                    <span>Monthly Unit Lease Rent (<%= application.roomRequested %>)</span>
+                                    <span class="font-bold text-slate-900">₱<%= actualBaseRent.toLocaleString() %></span>
+                                </div>
+                                <% runningTotal += actualBaseRent; %>
+                            <% } else { %>
+                                <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex gap-2.5 items-start text-emerald-700 text-xs shadow-sm">
+                                    <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5"></i>
+                                    <div class="space-y-1">
+                                        <span class="font-bold block text-sm">Rent Settlement Complete</span>
+                                        <span class="opacity-90 block leading-relaxed"><%= rentLockReason %></span>
+                                    </div>
+                                </div>
+                            <% } %>
 
                             <% if (utilityBills && utilityBills.length > 0) { %>
                                 <% utilityBills.forEach(function(bill) { %>
-                                    <div class="flex justify-between items-center border-b border-slate-50 pb-2">
+                                    <div class="flex justify-between items-center border-b border-slate-50 pb-2 pt-2">
                                         <span class="capitalize"><%= bill.type %> Statement Allocation</span>
                                         <span class="font-bold text-slate-900">₱<%= bill.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }) %></span>
                                     </div>
                                     <% runningTotal += bill.amount; %>
                                 <% }); %>
                             <% } else { %>
-                                <div class="p-3 bg-slate-50 rounded-xl text-slate-400 text-xs font-medium italic text-center">
+                                <div class="p-3 bg-slate-50 rounded-xl text-slate-400 text-xs font-medium italic text-center mt-4">
                                     No separate utility adjustments reported by layout admin this session.
                                 </div>
                             <% } %>
@@ -114,7 +119,7 @@
                     </div>
                 </div>
 
-                <!-- Right Grid: Payment Channels Selection -->
+                <!-- Right Grid: Payment Channels -->
                 <div class="md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
                     <h3 class="text-lg font-bold m-0 border-b border-slate-100 pb-3 text-[#3b4276]">Payment Options</h3>
                     
@@ -144,7 +149,7 @@
             </div>
         <% } %>
 
-        <!-- HIDDEN DIGITAL RECEIPT PREVIEW PANEL -->
+        <!-- Hidden Receipt Modal -->
         <div id="digital-receipt-modal" class="hidden w-full max-w-xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 md:p-8 space-y-6 animate-fade-in">
             <div class="text-center space-y-2 border-b border-slate-100 pb-4">
                 <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-xl">

@@ -1,4 +1,3 @@
-//dbCheck.js
 const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const User = require('./models/User');
@@ -6,6 +5,7 @@ const Room = require('./models/Room');
 const Tenant = require('./models/Tenant');
 const RentApplication = require('./models/RentApplication');
 const Transaction = require('./models/Transaction'); 
+const Announcement = require('./models/Announcement');
 require('dotenv').config();
 
 async function diagnose() {
@@ -13,8 +13,8 @@ async function diagnose() {
         await connectDB();
         console.log("✅ Connected to MongoDB successfully!");
         
-        // 1. Drop stale collections to clear out old index restrictions and structural schema mismatches
-        const collectionsToWipe = ['users', 'rooms', 'tenants', 'rentapplications', 'transactions'];
+        // 1. Drop stale collections to clear out old index restrictions and structural mismatches
+        const collectionsToWipe = ['users', 'rooms', 'tenants', 'rentapplications', 'transactions', 'announcements'];
         
         console.log("⚙️  Clearing structural database collection instances...");
         for (const colName of collectionsToWipe) {
@@ -62,10 +62,10 @@ async function diagnose() {
         });
 
         await freshAdmin.save();
-        console.log("🎉 SUCCESS! Fresh 'admin@ams.com' has been saved directly.[cite: 15]");
+        console.log("🎉 SUCCESS! Fresh 'admin@ams.com' has been saved directly.[cite: 14]");
         
         const checkSaved = await User.findOne({ emailAddress: 'admin@ams.com' });
-        console.log("🔒 Verified Saved Admin Hash:", checkSaved.password); // Confirms pre-save hook validation[cite: 15]
+        console.log("🔒 Verified Saved Admin Hash:", checkSaved.password); // Confirms pre-save hook validation[cite: 14]
         
         console.log("\n====================================================");
         console.log("🚀 SYSTEM SEED COMPLETE: Database ready for operation!");

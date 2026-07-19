@@ -2,16 +2,54 @@
 <div class="flex h-screen bg-slate-50 overflow-hidden">
     <%- include('../partials/adminSidebar') %>
     <div class="flex-1 flex flex-col overflow-hidden">
-        <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 relative z-50">
+        <header class="h-20 bg-white border-b border-gray-200 flex items-center px-8 shrink-0 relative z-50">
             <h2 class="text-2xl font-bold text-[#1e293b] m-0 tracking-tight">Payment Operations Ledger</h2>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-8">
+        <main class="flex-1 overflow-y-auto p-6 md:p-8">
             <div class="max-w-7xl mx-auto space-y-6">
+                
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 class="text-sm font-bold text-slate-800 m-0"><i class="fa-solid fa-filter text-indigo-500 mr-2"></i>Ledger Filters</h3>
+                    
+                    <form action="/admin/payments" method="GET" class="flex flex-wrap items-center gap-3">
+                        <select name="sortOrder" class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500">
+                            <option value="desc" <%= typeof sortOrder !== 'undefined' && sortOrder === 'desc' ? 'selected' : '' %>>Most Recent First</option>
+                            <option value="asc" <%= typeof sortOrder !== 'undefined' && sortOrder === 'asc' ? 'selected' : '' %>>Oldest First</option>
+                        </select>
+
+                        <select name="timeframe" id="ledgerTimeframe" onchange="toggleLedgerInputs()" class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none font-semibold text-slate-700 cursor-pointer focus:ring-2 focus:ring-indigo-500">
+                            <option value="overall" <%= typeof timeframe === 'undefined' || timeframe === 'overall' ? 'selected' : '' %>>All Time</option>
+                            <option value="year" <%= typeof timeframe !== 'undefined' && timeframe === 'year' ? 'selected' : '' %>>Specific Year</option>
+                            <option value="month" <%= typeof timeframe !== 'undefined' && timeframe === 'month' ? 'selected' : '' %>>Specific Month</option>
+                        </select>
+                        
+                        <div id="ledgerYearGroup" class="relative hidden">
+                            <input type="number" id="ledgerYear" value="<%= (typeof filterYear !== 'undefined' && filterYear) ? filterYear : new Date().getFullYear() %>" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 w-24 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700" placeholder="YYYY" />
+                        </div>
+                        
+                        <div id="ledgerMonthGroup" class="relative hidden">
+                            <select id="ledgerMonth" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 cursor-pointer">
+                                <option value="01" <%= (typeof filterMonth !== 'undefined' && filterMonth === '01') ? 'selected' : '' %>>January</option>
+                                <option value="02" <%= (typeof filterMonth !== 'undefined' && filterMonth === '02') ? 'selected' : '' %>>February</option>
+                                <option value="03" <%= (typeof filterMonth !== 'undefined' && filterMonth === '03') ? 'selected' : '' %>>March</option>
+                                <option value="04" <%= (typeof filterMonth !== 'undefined' && filterMonth === '04') ? 'selected' : '' %>>April</option>
+                                <option value="05" <%= (typeof filterMonth !== 'undefined' && filterMonth === '05') ? 'selected' : '' %>>May</option>
+                                <option value="06" <%= (typeof filterMonth !== 'undefined' && filterMonth === '06') ? 'selected' : '' %>>June</option>
+                                <option value="07" <%= (typeof filterMonth !== 'undefined' && filterMonth === '07') ? 'selected' : '' %>>July</option>
+                                <option value="08" <%= (typeof filterMonth !== 'undefined' && filterMonth === '08') ? 'selected' : '' %>>August</option>
+                                <option value="09" <%= (typeof filterMonth !== 'undefined' && filterMonth === '09') ? 'selected' : '' %>>September</option>
+                                <option value="10" <%= (typeof filterMonth !== 'undefined' && filterMonth === '10') ? 'selected' : '' %>>October</option>
+                                <option value="11" <%= (typeof filterMonth !== 'undefined' && filterMonth === '11') ? 'selected' : '' %>>November</option>
+                                <option value="12" <%= (typeof filterMonth !== 'undefined' && filterMonth === '12') ? 'selected' : '' %>>December</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="bg-indigo-600 text-white font-bold px-5 py-2 rounded-lg text-sm shadow-sm cursor-pointer border-0 hover:bg-indigo-700 transition-colors">Apply Filters</button>
+                    </form>
+                </div>
+
                 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                    <div class="p-5 border-b border-slate-100 bg-slate-50">
-                        <h3 class="text-sm font-bold text-slate-800 m-0">Settlement Verification Processing</h3>
-                    </div>
                     <table class="w-full text-sm text-left border-collapse">
                         <thead class="bg-slate-100/75 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <tr>
@@ -35,16 +73,11 @@
                                     <td class="py-4 px-6 text-slate-500 text-xs font-mono"><%= p.date %></td>
                                     <td class="py-4 px-6 text-center">
                                         <% if (p.status === 'pending') { %>
-                                            <!-- Manual validation form for Cash on Hand deposits -->
                                             <form action="/admin/payments/<%= p.id %>/confirm" method="POST" class="m-0 inline-block">
-                                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border-0 cursor-pointer shadow-sm transition-colors">
-                                                    Confirm Receipt
-                                                </button>
+                                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border-0 cursor-pointer shadow-sm transition-colors">Confirm Receipt</button>
                                             </form>
                                         <% } else { %>
-                                            <span class="inline-flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">
-                                                ✓ Cleared
-                                            </span>
+                                            <span class="inline-flex items-center text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">✓ Cleared</span>
                                         <% } %>
                                     </td>
                                 </tr>
@@ -56,4 +89,30 @@
         </main>
     </div>
 </div>
+
+<script>
+    function toggleLedgerInputs() {
+        const select = document.getElementById('ledgerTimeframe').value;
+        const yearGroup = document.getElementById('ledgerYearGroup');
+        const monthGroup = document.getElementById('ledgerMonthGroup');
+        const yearInp = document.getElementById('ledgerYear');
+        const monthInp = document.getElementById('ledgerMonth');
+        
+        yearGroup.classList.add('hidden');
+        monthGroup.classList.add('hidden');
+        yearInp.removeAttribute('name');
+        monthInp.removeAttribute('name');
+
+        if (select === 'year') {
+            yearGroup.classList.remove('hidden');
+            yearInp.setAttribute('name', 'filterYear');
+        } else if (select === 'month') {
+            yearGroup.classList.remove('hidden');
+            monthGroup.classList.remove('hidden');
+            yearInp.setAttribute('name', 'filterYear');
+            monthInp.setAttribute('name', 'filterMonth');
+        }
+    }
+    window.addEventListener('DOMContentLoaded', toggleLedgerInputs);
+</script>
 <%- include('../partials/footer') %>

@@ -7,131 +7,233 @@ const User = require('../models/User');
 const Announcement = require('../models/Announcement');
 const Transaction = require('../models/Transaction');
 
-//Authentication gateway middleware barrier for administrators
+// Authentication gateway middleware barrier for administrators
 const isAdmin = (req, res, next) => {
-    if (req.session.user && req.session.user.role === 'admin') {
-        return next();
-    }
+    if (req.session.user && req.session.user.role === 'admin') return next();
     res.redirect('/login');
 };
 
-//Render admin dashboard metrics
+// Global Admin Middleware to check for notifications (Pending Moveouts, Apps, and Payments)
+router.use(async (req, res, next) => {
+    if (req.session.user && req.session.user.role === 'admin') {
+        res.locals.pendingMoveoutCount = await Tenant.countDocuments({ status: 'Pending Moveout', isArchived: false });
+        res.locals.pendingAppsCount = await RentApplication.countDocuments({ status: 'pending' });
+        res.locals.pendingPaymentsCount = await Transaction.countDocuments({ status: 'pending' });
+    }
+    next();
+});
+
+// ==================================================
+// DASHBOARD
+// ==================================================
 router.get('/dashboard', isAdmin, async (req, res) => {
     try {
+        const { timeframe, filterYear, filterMonth } = req.query;
+        let txMatchQuery = { status: 'completed' };
+
+        if (timeframe === 'month' && filterYear && filterMonth) {
+            txMatchQuery.createdAt = { 
+                $gte: new Date(filterYear, filterMonth - 1, 1), 
+                $lte: new Date(filterYear, filterMonth, 0, 23, 59, 59) 
+            };
+        } else if (timeframe === 'year' && filterYear) {
+            txMatchQuery.createdAt = { 
+                $gte: new Date(filterYear, 0, 1), 
+                $lte: new Date(filterYear, 11, 31, 23, 59, 59) 
+            };
+        }
+
+        const filteredTransactions = await Transaction.find(txMatchQuery);
+        const totalRevenue = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+
         const totalRooms = await Room.countDocuments();
         const occupiedRooms = await Room.countDocuments({ isAvailable: false });
         const vacantRooms = await Room.countDocuments({ isAvailable: true });
-        const activeTenants = await Tenant.countDocuments();
-
-        const occupiedRoomDetails = await Room.find({ isAvailable: false });
-        const totalRevenue = occupiedRoomDetails.reduce((sum, room) => sum + room.price, 0);
-        const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-
+        
         const stats = {
             totalRevenue,
-            activeTenants,
-            occupancyRate,
-            openMaintenance: 0,
+            activeTenants: await Tenant.countDocuments({ isArchived: false }),
+            occupancyRate: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
             occupiedUnits: occupiedRooms,
-            vacantUnits: vacantRooms
+            vacantUnits: vacantRooms,
+            pendingApps: res.locals.pendingAppsCount,
+            acceptedApps: await RentApplication.countDocuments({ status: 'accepted' }),
+            rejectedApps: await RentApplication.countDocuments({ status: 'rejected' }),
+            pendingPayments: res.locals.pendingPaymentsCount,
+            completedPayments: await Transaction.countDocuments({ status: 'completed' })
         };
 
-        const chartData = [
-            { month: 'Jan', percentage: 45 }, { month: 'Feb', percentage: 60 },
-            { month: 'Mar', percentage: 75 }, { month: 'Apr', percentage: 90 },
-            { month: 'May', percentage: 80 }, { month: 'Jun', percentage: 95 }
-        ];
-
-        res.render('admin/dashboard', { stats, chartData });
-    } catch (err) {
-        res.status(500).send('Server error');
-    }
-});
-
-//Render admin application management portal
-router.get('/applications', isAdmin, async (req, res) => {
-    try {
-        const applications = await RentApplication.find({ status: 'pending' }).sort({ createdAt: -1 });
-        res.render('admin/applications', { applications });
-    } catch (err) {
-        res.status(500).send('Error');
-    }
-});
-
-//Dynamic room inventory setup pulling existing utility payments to pre-fill editor forms
-router.get('/rooms', isAdmin, async (req, res) => {
-    try {
-        const rooms = await Room.find().sort({ roomName: 1 });
+        const currentYear = (timeframe === 'year' && filterYear) ? parseInt(filterYear) : new Date().getFullYear();
+        const yearTransactions = await Transaction.find({ 
+            status: 'completed', 
+            createdAt: { $gte: new Date(currentYear, 0, 1), $lte: new Date(currentYear, 11, 31, 23, 59, 59) } 
+        });
         
-        const units = await Promise.all(rooms.map(async (r) => {
-            const isThirdFloor = r.roomName.includes('Room I') || r.roomName.includes('Room J') || 
-                                r.roomName.includes('Room K') || r.roomName.includes('Room L') || 
-                                r.roomName.includes('Room M') || r.roomName.includes('Room N');
-            
-            let electricityCost = 0;
-            let waterCost = 0;
-            
-            if (!r.isAvailable && r.currentTenant) {
-                const existingElectricity = await Transaction.findOne({ user: r.currentTenant, roomName: r.roomName, status: 'pending', type: 'utilities', paymentMethod: 'bank' });
-                const existingWater = await Transaction.findOne({ user: r.currentTenant, roomName: r.roomName, status: 'pending', type: 'utilities', paymentMethod: 'gcash' });
-                
-                if (existingElectricity) electricityCost = existingElectricity.amount;
-                if (existingWater) waterCost = existingWater.amount;
-            }
+        const monthlyTotals = Array(12).fill(0);
+        yearTransactions.forEach(tx => monthlyTotals[tx.createdAt.getMonth()] += tx.amount);
 
-            return {
-                roomName: r.roomName.replace('Room ', ''),
-                status: r.isAvailable ? 'vacant' : 'active',
-                monthlyRent: isThirdFloor ? 3500 : 4000,
-                electricity: electricityCost,
-                water: waterCost
-            };
-        }));
-
-        res.render('admin/units', { units });
-    } catch (err) {
-        res.status(500).send('Error');
-    }
+        res.render('admin/dashboard', { stats, monthlyTotals, timeframe, filterYear, filterMonth, currentYear });
+    } catch (err) { res.status(500).send('Server error'); }
 });
 
-router.get('/units', isAdmin, async (req, res) => {
+// ==================================================
+// PAYMENTS & LEDGER
+// ==================================================
+router.get('/payments', isAdmin, async (req, res) => {
+    try {
+        const { timeframe, filterYear, filterMonth, sortOrder } = req.query;
+        let query = {};
+        if (timeframe === 'month' && filterYear && filterMonth) {
+            query.createdAt = { $gte: new Date(filterYear, filterMonth - 1, 1), $lte: new Date(filterYear, filterMonth, 0, 23, 59, 59) };
+        } else if (timeframe === 'year' && filterYear) {
+            query.createdAt = { $gte: new Date(filterYear, 0, 1), $lte: new Date(filterYear, 11, 31, 23, 59, 59) };
+        }
+
+        const historyLogs = await Transaction.find(query).populate('user').sort({ createdAt: sortOrder === 'asc' ? 1 : -1 });
+        const payments = historyLogs.map(tx => ({
+            id: tx._id, user: tx.user, roomName: tx.roomName.replace('Room ', ''),
+            amountPaid: tx.amount, billingType: tx.type, method: tx.paymentMethod === 'cash' ? 'Cash on Hand' : tx.paymentMethod.toUpperCase(), status: tx.status,
+            date: tx.createdAt.toLocaleDateString()
+        }));
+        res.render('admin/payments', { payments, timeframe, filterYear, filterMonth, sortOrder });
+    } catch (err) { res.status(500).send('Error'); }
+});
+
+router.post('/payments/:id/confirm', isAdmin, async (req, res) => {
+    try {
+        const transaction = await Transaction.findById(req.params.id);
+        if (transaction) {
+            transaction.status = 'completed'; await transaction.save();
+            await Transaction.updateMany({ user: transaction.user, type: 'utilities', status: 'pending' }, { $set: { status: 'completed' } });
+            
+            const application = await RentApplication.findOne({ user: transaction.user }).sort({ createdAt: -1 });
+            if (application) {
+                application.status = 'accepted'; await application.save();
+                let room = await Room.findOne({ roomName: application.roomRequested }) || await Room.findOne({ roomName: `Room ${application.roomRequested}` });
+                if (!(await Tenant.findOne({ user: transaction.user }))) {
+                    await new Tenant({ user: transaction.user, suffix: application.suffix || '', gender: application.gender || 'Other', contactNo: application.contactNo, room: room ? room._id : null }).save();
+                }
+            }
+        }
+        res.redirect('/admin/payments');
+    } catch (err) { res.status(500).send('Error'); }
+});
+
+// ==================================================
+// UNITS & ROOMS
+// ==================================================
+router.get('/rooms', isAdmin, async (req, res) => {
+    const rooms = await Room.find().sort({ roomName: 1 });
+    const units = await Promise.all(rooms.map(async (r) => {
+        let electricityCost = 0, waterCost = 0, nextDeadline = "N/A";
+        if (!r.isAvailable && r.currentTenant) {
+            const existingElectricity = await Transaction.findOne({ user: r.currentTenant, roomName: r.roomName, status: 'pending', type: 'utilities', paymentMethod: 'bank' });
+            const existingWater = await Transaction.findOne({ user: r.currentTenant, roomName: r.roomName, status: 'pending', type: 'utilities', paymentMethod: 'gcash' });
+            if (existingElectricity) electricityCost = existingElectricity.amount;
+            if (existingWater) waterCost = existingWater.amount;
+            
+            // Look up when the user first submitted a payment to grab their unique cycle start day
+            const firstPay = await Transaction.findOne({ user: r.currentTenant, type: 'deposit', status: 'completed' }).sort({ createdAt: 1 });
+            if (firstPay) {
+                const bDay = firstPay.createdAt.getDate();
+                const today = new Date();
+                let nextDue = new Date(today.getFullYear(), today.getMonth(), bDay);
+                if (today.getTime() > nextDue.getTime()) nextDue.setMonth(nextDue.getMonth() + 1);
+                nextDeadline = nextDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            }
+        }
+        return { roomName: r.roomName.replace('Room ', ''), status: r.isAvailable ? 'vacant' : 'active', monthlyRent: r.price, electricity: electricityCost, water: waterCost, deadline: nextDeadline };
+    }));
+    res.render('admin/units', { units });
+});
+
+router.post('/rooms/update-unit', isAdmin, async (req, res) => {
+    const { roomName, baseRent, electricity, water } = req.body;
+    const room = await Room.findOne({ roomName: `Room ${roomName}` });
+    if (room) {
+        if (baseRent) room.price = parseFloat(baseRent);
+        await room.save();
+        if (room.currentTenant && electricity !== undefined && water !== undefined) {
+            await Transaction.findOneAndUpdate({ user: room.currentTenant, roomName: `Room ${roomName}`, status: 'pending', type: 'utilities', paymentMethod: 'bank' }, { amount: parseFloat(electricity) }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true });
+            await Transaction.findOneAndUpdate({ user: room.currentTenant, roomName: `Room ${roomName}`, status: 'pending', type: 'utilities', paymentMethod: 'gcash' }, { amount: parseFloat(water) }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true });
+        }
+    }
     res.redirect('/admin/rooms');
 });
 
-//UPDATES OR CREATES UTILITY RECOGNITIONS CLEANLY PREVENTING COLLECTION DUPLICATIONS
-router.post('/rooms/setup-utilities', isAdmin, async (req, res) => {
-    const { roomName, electricity, water } = req.body;
-    try {
-        const room = await Room.findOne({ roomName: `Room ${roomName}` });
-        if (room && room.currentTenant) {
-            // Check and update existing electricity parameters cleanly using returnDocument to avoid warnings
-            await Transaction.findOneAndUpdate(
-                { user: room.currentTenant, roomName: `Room ${roomName}`, status: 'pending', type: 'utilities', paymentMethod: 'bank' },
-                { amount: parseFloat(electricity) },
-                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-
-            // Check and update existing water parameters cleanly using returnDocument to avoid warnings
-            await Transaction.findOneAndUpdate(
-                { user: room.currentTenant, roomName: `Room ${roomName}`, status: 'pending', type: 'utilities', paymentMethod: 'gcash' },
-                { amount: parseFloat(water) },
-                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
-        }
-        res.redirect('/admin/rooms');
-    } catch (err) {
-        console.error("Utility updates process tracking crash:", err);
-        res.status(500).send('Error setting utilities');
-    }
+// ==================================================
+// ANNOUNCEMENTS
+// ==================================================
+router.get('/announcements', isAdmin, async (req, res) => {
+    const { targetFilter } = req.query;
+    const announcements = await Announcement.find(targetFilter && targetFilter !== 'All' ? { sendTo: targetFilter } : {}).sort({ createdAt: -1 });
+    res.render('admin/announcements', { announcements, targetFilter });
 });
 
-//Load transaction histories inside the payment ledger
-router.get('/payments', isAdmin, async (req, res) => {
+router.post('/announcements', isAdmin, async (req, res) => {
+    await new Announcement({ ...req.body, status: 'sent', sendTo: req.body.sendTo || 'All' }).save();
+    res.redirect('/admin/announcements');
+});
+
+router.post('/announcements/:id/edit', isAdmin, async (req, res) => {
+    await Announcement.findByIdAndUpdate(req.params.id, { ...req.body, sendTo: req.body.sendTo || 'All' });
+    res.redirect('/admin/announcements');
+});
+
+router.post('/announcements/:id/delete', isAdmin, async (req, res) => {
+    await Announcement.findByIdAndDelete(req.params.id);
+    res.redirect('/admin/announcements');
+});
+
+// ==================================================
+// TENANTS, PAST TENANTS, AND SPECIFIC HISTORY
+// ==================================================
+router.get('/tenants', isAdmin, async (req, res) => {
+    const activeProfiles = await Tenant.find({ isArchived: false }).populate('user').populate('room');
+    const tenants = activeProfiles.map(t => ({
+        id: t._id, 
+        userId: t.user ? t.user._id : null,
+        user: t.user || { firstName: 'Incomplete', lastName: 'Record' },
+        roomName: t.room ? t.room.roomName.replace('Room ', '') : 'N/A',
+        contactNo: t.contactNo, status: t.status
+    }));
+    res.render('admin/tenants', { tenants });
+});
+
+router.post('/tenants/:id/archive', isAdmin, async (req, res) => {
+    const tenant = await Tenant.findById(req.params.id);
+    if (tenant) {
+        if (tenant.room) await Room.findByIdAndUpdate(tenant.room, { isAvailable: true, currentTenant: null });
+        tenant.isArchived = true; tenant.status = 'Archived'; tenant.room = null;
+        await tenant.save();
+    }
+    res.redirect('/admin/tenants');
+});
+
+router.get('/past-tenants', isAdmin, async (req, res) => {
+    const archivedProfiles = await Tenant.find({ isArchived: true }).populate('user');
+    const pastTenants = await Promise.all(archivedProfiles.map(async (t) => {
+        const userHistory = await Transaction.find({ user: t.user._id, status: 'completed' });
+        const totalPaid = userHistory.reduce((sum, tx) => sum + tx.amount, 0);
+        return { 
+            userId: t.user ? t.user._id : null,
+            user: t.user || { firstName: 'Deleted', lastName: 'User' }, 
+            contactNo: t.contactNo.split("EXT:")[0].trim(), 
+            totalPaid: totalPaid, 
+            archivedDate: t.createdAt.toLocaleDateString() 
+        };
+    }));
+    res.render('admin/pastTenants', { pastTenants });
+});
+
+router.get('/tenants/:userId/history', isAdmin, async (req, res) => {
     try {
-        const historyLogs = await Transaction.find().populate('user').sort({ createdAt: -1 });
+        const tenantUser = await User.findById(req.params.userId);
+        if (!tenantUser) return res.status(404).send('User not found');
+        
+        const historyLogs = await Transaction.find({ user: req.params.userId }).sort({ createdAt: -1 });
         const payments = historyLogs.map(tx => ({
             id: tx._id,
-            user: tx.user || { firstName: 'System', lastName: 'Record' },
             roomName: tx.roomName.replace('Room ', ''),
             amountPaid: tx.amount,
             billingType: tx.type,
@@ -139,124 +241,39 @@ router.get('/payments', isAdmin, async (req, res) => {
             status: tx.status,
             date: tx.createdAt ? tx.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'
         }));
-        res.render('admin/payments', { payments });
+
+        res.render('admin/tenantHistory', { tenantUser, payments });
     } catch (err) {
         res.status(500).send('Error');
     }
 });
 
-//FIXED CRASH-PROOFED ADMINISTRATIVE MANUAL SIGN OFF VALIDATION LOGIC FOR CASH DEPOSITS
-router.post('/payments/:id/confirm', isAdmin, async (req, res) => {
-    try {
-        const transaction = await Transaction.findById(req.params.id);
-        if (!transaction) return res.status(404).send('Transaction record not found.');
-
-        transaction.status = 'completed';
-        await transaction.save();
-
-        const application = await RentApplication.findOne({ user: transaction.user }).sort({ createdAt: -1 });
-
-        if (application) {
-            application.status = 'accepted'; 
-            await application.save();
-
-            let room = await Room.findOne({ roomName: application.roomRequested });
-            if (!room) {
-                room = await Room.findOne({ roomName: `Room ${application.roomRequested}` });
-            }
-
-            const tenantExists = await Tenant.findOne({ user: transaction.user });
-            if (!tenantExists) {
-                const newTenantProfile = new Tenant({
-                    user: transaction.user,
-                    suffix: application.suffix || '',
-                    gender: application.gender || 'Other',
-                    contactNo: application.contactNo,
-                    room: room ? room._id : null
-                });
-                await newTenantProfile.save();
-            }
-        }
-
-        res.redirect('/admin/payments');
-    } catch (err) {
-        res.status(500).send('Error');
-    }
+// ==================================================
+// APPLICATIONS
+// ==================================================
+router.get('/applications', isAdmin, async (req, res) => {
+    const applications = await RentApplication.find({ status: 'pending' }).sort({ createdAt: -1 });
+    res.render('admin/applications', { applications });
 });
 
-//Render announcement broadcasting compose interface
-router.get('/announcements', isAdmin, (req, res) => {
-    res.render('admin/announcements');
-});
-
-//Process notice creation broadcasts to all tenant applications
-router.post('/announcements', isAdmin, async (req, res) => {
-    const { title, body } = req.body;
-    try {
-        const newAnnouncement = new Announcement({
-            title: title.trim(),
-            body: body.trim(),
-            status: 'sent'
-        });
-        await newAnnouncement.save();
-        res.redirect('/admin/announcements');
-    } catch (err) {
-        res.status(500).send('Error');
-    }
-});
-
-//Render maintenance tickets dashboard view
-router.get('/tickets', isAdmin, (req, res) => {
-    res.render('admin/tickets', { tickets: [] });
-});
-
-//Render financial report summaries page
-router.get('/reports', isAdmin, async (req, res) => {
-    try {
-        const occupiedRoomDetails = await Room.find({ isAvailable: false });
-        const totalRevenue = occupiedRoomDetails.reduce((sum, room) => sum + room.price, 0);
-        res.render('admin/reports', { stats: { totalRevenue } });
-    } catch (err) {
-        res.status(500).send('Error');
-    }
-});
-
-//Render active tenant roster
-router.get('/tenants', isAdmin, async (req, res) => {
-    try {
-        const activeProfiles = await Tenant.find().populate('user').populate('room');
-        const tenants = activeProfiles.map(t => ({
-            user: t.user || { firstName: 'Incomplete', lastName: 'Record' },
-            roomName: t.room ? t.room.roomName.replace('Room ', '') : 'N/A',
-            contactNo: t.contactNo,
-            status: 'Active'
-        }));
-        res.render('admin/tenants', { tenants });
-    } catch (err) {
-        res.status(500).send('Error');
-    }
-});
-
-//Process acceptance of pending rental applications
 router.post('/applications/:id/accept', isAdmin, async (req, res) => {
     try {
         const appRecord = await RentApplication.findById(req.params.id);
-        if (!appRecord) return res.status(404).send('Not found');
-
-        const room = await Room.findOne({ roomName: appRecord.roomRequested });
-        if (!room || !room.isAvailable) return res.status(400).send('Unavailable');
-
-        room.isAvailable = false;
-        room.currentTenant = appRecord.user;
-        await room.save();
-
-        appRecord.status = 'accepted';
-        await appRecord.save();
-
+        if (appRecord) {
+            const room = await Room.findOne({ roomName: appRecord.roomRequested });
+            if (room && room.isAvailable) {
+                room.isAvailable = false; room.currentTenant = appRecord.user; await room.save();
+                appRecord.status = 'accepted'; await appRecord.save();
+                
+                await new Announcement({
+                    title: "Application Approved! 🎉",
+                    body: `Congratulations! Your rental application for ${appRecord.roomRequested} has been successfully validated. Please proceed to your dashboard to settle your advance deposit and unlock your room parameters.`,
+                    tag: 'Urgent', sendTo: 'Specific', targetUser: appRecord.user, status: 'sent'
+                }).save();
+            }
+        }
         res.redirect('/admin/applications');
-    } catch (err) {
-        res.status(500).send('Error');
-    }
+    } catch (err) { res.status(500).send('Error'); }
 });
 
 module.exports = router;

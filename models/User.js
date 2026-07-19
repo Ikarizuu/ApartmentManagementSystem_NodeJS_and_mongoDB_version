@@ -7,6 +7,8 @@ const UserSchema = new mongoose.Schema({
     emailAddress: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['tenant', 'admin'], default: 'tenant' },
+    readAnnouncements: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Announcement' }],
+    clearedAnnouncements: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Announcement' }],
     createdAt: { type: Date, default: Date.now }
 });
 

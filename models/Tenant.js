@@ -5,7 +5,8 @@ const TenantSchema = new mongoose.Schema({
     suffix: { type: String, default: '', trim: true },
     gender: { type: String, enum: ['Male', 'Female', 'Other', ''], default: '' },
     contactNo: { type: String, required: true, trim: true },
-    room: { type: mongoose.Schema.Types.ObjectId, ref: 'Room', default: null }, //Linked when application is accepted
+    room: { type: mongoose.Schema.Types.ObjectId, ref: 'Room', default: null },
+    status: { type: String, default: 'Active' },
     isArchived: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
