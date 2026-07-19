@@ -7,6 +7,7 @@ const Tenant = require('../models/Tenant');
 const RentApplication = require('../models/RentApplication');
 const Announcement = require('../models/Announcement');
 const Transaction = require('../models/Transaction');
+const Room = require('../models/Room');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, './uploads/applications/'),
@@ -64,7 +65,27 @@ async function getTenantBillingContext(userId) {
         rentLockReason = `You have paid in advance up to ${rentDueDateLabel}. Maximum 1-month advance payment limit reached.`;
     }
 
-    return { application, activeTenant, totalPaidMonths, contractMaxMonths, rentDueDateLabel, currentCycleStart, canPayRent, rentLockReason };
+    let utilityBills = [];
+    let hasPendingUtilities = false;
+    if (application) {
+        const roomDoc = await Room.findOne({ roomName: application.roomRequested });
+        if (roomDoc && roomDoc.utilities && roomDoc.utilities.isBilled) {
+            const pendingUtilTx = await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true });
+            if (!pendingUtilTx) {
+                hasPendingUtilities = true;
+                if (roomDoc.utilities.electricity > 0) {
+                    utilityBills.push({ type: 'electricity', amount: roomDoc.utilities.electricity });
+                }
+                if (roomDoc.utilities.water > 0) {
+                    utilityBills.push({ type: 'water', amount: roomDoc.utilities.water });
+                }
+            }
+        }
+    }
+
+    const showRedPing = canPayRent || hasPendingUtilities;
+
+    return { application, activeTenant, totalPaidMonths, contractMaxMonths, rentDueDateLabel, currentCycleStart, canPayRent, rentLockReason, utilityBills, showRedPing };
 }
 
 // ==================================================
@@ -140,12 +161,10 @@ router.get('/home', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
     if (application && (application.status === 'accepted' || application.status === 'pending' || application.status === 'active')) return res.redirect('/my-room');
-    const Room = require('../models/Room');
     res.render('home', { availableRoomsCount: await Room.countDocuments({ isAvailable: true }), hasRentedRoom: false, user: req.session.user });
 });
 
 router.get('/preview', isTenant, async (req, res) => {
-    const Room = require('../models/Room');
     const rooms = await Room.find({ isAvailable: true }).sort({ roomName: 1 });
     res.render('preview', { rooms, hasRentedRoom: !!(await RentApplication.findOne({ user: req.session.user._id || req.session.user.id })), user: req.session.user });
 });
@@ -173,10 +192,30 @@ router.get('/my-room', isTenant, async (req, res) => {
     res.render('myRoom', { 
         application: ctx.application, hasRentedRoom: true, user: req.session.user,
         isPaid: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'completed' })),
-        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending' })),
+        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true })),
         currentCycleStart: ctx.currentCycleStart, rentDueDateLabel: ctx.rentDueDateLabel,
-        totalPaidMonths: ctx.totalPaidMonths, contractMaxMonths: ctx.contractMaxMonths
+        totalPaidMonths: ctx.totalPaidMonths, contractMaxMonths: ctx.contractMaxMonths,
+        showRedPing: ctx.showRedPing
     });
+});
+
+router.post('/update-occupants', isTenant, async (req, res) => {
+    try {
+        const userId = req.session.user._id || req.session.user.id;
+        const parsedOccupants = parseInt(req.body.occupants);
+
+        if (isNaN(parsedOccupants) || parsedOccupants < 1 || parsedOccupants > 4) {
+            return res.redirect('/my-room');
+        }
+
+        await RentApplication.findOneAndUpdate(
+            { user: userId },
+            { $set: { occupants: parsedOccupants } },
+            { sort: { createdAt: -1 } }
+        );
+
+        res.redirect('/my-room');
+    } catch (err) { res.status(500).send('Error'); }
 });
 
 router.get('/view-contract', isTenant, async (req, res) => {
@@ -207,13 +246,17 @@ router.get('/pay-bills', isTenant, async (req, res) => {
 
     const baseRent = ctx.application.roomRequested.match(/Room [I-N]/) ? 3500 : 4000;
     const actualBaseRent = ctx.canPayRent ? baseRent : 0;
-    const utilityBills = await Transaction.find({ user: userId, status: 'pending', type: 'utilities' });
     
+    const isWaitingRentConfirmation = !!(await Transaction.findOne({ user: userId, type: 'rent', status: 'pending', tenantPaid: true }));
+    const isWaitingUtilityConfirmation = !!(await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true }));
+
     res.render('payBills', { 
         application: ctx.application, actualBaseRent, canPayRent: ctx.canPayRent, rentLockReason: ctx.rentLockReason, 
         isFullyBoarded: !!ctx.activeTenant, hasRentedRoom: true, user: req.session.user, 
-        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, status: 'pending', type: { $in: ['deposit', 'rent'] } })),
-        utilityBills, currentPeriodLabel: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true })),
+        isWaitingRentConfirmation,
+        isWaitingUtilityConfirmation,
+        utilityBills: ctx.utilityBills, currentPeriodLabel: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         rentDueDateLabel: ctx.rentDueDateLabel
     });
 });
@@ -222,52 +265,118 @@ router.post('/pay-bills', isTenant, async (req, res) => {
     const { amount, paymentMethod } = req.body;
     const userId = req.session.user._id || req.session.user.id;
     const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-    const initialTxStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
 
-    const utilityBills = await Transaction.find({ user: userId, status: 'pending', type: 'utilities' });
-    let utilsTotal = 0; utilityBills.forEach(b => utilsTotal += b.amount);
+    const ctx = await getTenantBillingContext(userId);
+    let utilsTotal = ctx.utilityBills.reduce((sum, b) => sum + b.amount, 0);
+    let inputAmount = parseFloat(amount);
     
-    if (parseFloat(amount) > utilsTotal) {
-        const activeTenant = await Tenant.findOne({ user: userId });
+    const calculatedStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
+
+    // 1. Process utility billing if active
+    if (utilsTotal > 0 && inputAmount >= utilsTotal) {
         await new Transaction({
-            user: userId, roomName: application.roomRequested, amount: parseFloat(amount) - utilsTotal, 
-            type: activeTenant ? 'rent' : 'deposit', paymentMethod: paymentMethod, status: initialTxStatus
+            user: userId, roomName: application.roomRequested, amount: utilsTotal,
+            type: 'utilities', paymentMethod: paymentMethod, status: calculatedStatus, tenantPaid: true
         }).save();
+        
+        if (calculatedStatus === 'completed') {
+            await Room.findOneAndUpdate(
+                { roomName: application.roomRequested },
+                { $set: { "utilities.isBilled": false } }
+            );
+            
+            // Dispatches instant notification feed item for digital completions
+            await new Announcement({
+                title: "Utility Payment Successful! 🎉",
+                body: `Your utility parameter payment of ₱${utilsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} has been captured and validated seamlessly via ${paymentMethod.toUpperCase()}.`,
+                tag: 'General', sendTo: 'Specific', targetUser: userId, status: 'sent'
+            }).save();
+        }
+        inputAmount -= utilsTotal;
     }
 
-    for (let bill of utilityBills) {
-        if (initialTxStatus === 'completed') { bill.status = 'completed'; await bill.save(); }
-    }
+    // 2. Process any remaining amount toward rent or down payment
+    if (inputAmount > 0) {
+        const activeTenant = await Tenant.findOne({ user: userId });
+        const targetType = activeTenant ? 'rent' : 'deposit';
 
-    if (initialTxStatus === 'completed') {
-        const Room = require('../models/Room');
-        const room = await Room.findOne({ roomName: application.roomRequested });
-        if (!(await Tenant.findOne({ user: userId }))) {
+        await new Transaction({
+            user: userId, roomName: application.roomRequested, amount: inputAmount, 
+            type: targetType, paymentMethod: paymentMethod, status: calculatedStatus, tenantPaid: true
+        }).save();
+
+        if (calculatedStatus === 'completed') {
+            await new Announcement({
+                title: "Payment Completed Successfully! 🎉",
+                body: `Your transaction of ₱${inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} for room ${targetType} was authorized and fully processed via ${paymentMethod.toUpperCase()}.`,
+                tag: 'General', sendTo: 'Specific', targetUser: userId, status: 'sent'
+            }).save();
+        }
+
+        if (targetType === 'deposit' && calculatedStatus === 'completed') {
+            let room = await Room.findOne({ roomName: application.roomRequested });
+            if (room) {
+                room.isAvailable = false;
+                room.currentTenant = userId;
+                await room.save();
+            }
+            
             let sanitizedGender = 'Other';
             if (application.gender && application.gender.trim().toLowerCase() === 'male') sanitizedGender = 'Male';
             if (application.gender && application.gender.trim().toLowerCase() === 'female') sanitizedGender = 'Female';
-            await new Tenant({ user: userId, suffix: application.suffix || '', gender: sanitizedGender, contactNo: application.contactNo, room: room ? room._id : null }).save();
+
+            if (!activeTenant) {
+                await new Tenant({ 
+                    user: userId, suffix: application.suffix || '', gender: sanitizedGender, contactNo: application.contactNo, room: room ? room._id : null, status: 'Active', isArchived: false
+                }).save();
+            }
+            application.status = 'accepted';
+            await application.save();
         }
     }
-    return res.json({ status: initialTxStatus, amount, method: paymentMethod });
+
+    return res.json({ status: calculatedStatus, amount, method: paymentMethod });
 });
 
+// FIXED: /profile-settings target routing node linked completely
 router.get('/profile-settings', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const dbUser = await User.findById(userId);
     const tenantData = await Tenant.findOne({ user: userId });
-    res.render('profileSettings', { dbUser: { ...dbUser._doc, contactNo: (tenantData?.contactNo || '').split("EXT:")[0].trim(), suffix: tenantData?.suffix || '', gender: tenantData?.gender || '' }, successMessage: null, errorMessage: null, hasRentedRoom: !!(await RentApplication.findOne({ user: userId })), user: req.session.user });
+    const appData = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+    
+    // Evaluates if the user is an active room occupant or just a baseline applicant
+    const isRealTenant = !!tenantData;
+
+    res.render('profileSettings', { 
+        dbUser: { 
+            ...dbUser._doc, 
+            contactNo: isRealTenant ? (tenantData?.contactNo || '').split("EXT:")[0].trim() : (appData?.contactNo || ''), 
+            suffix: isRealTenant ? (tenantData?.suffix || '') : (appData?.suffix || ''), 
+            gender: isRealTenant ? (tenantData?.gender || '') : (appData?.gender || ''),
+            documents: appData ? appData.documents : null
+        }, 
+        isRealTenant,
+        successMessage: null, 
+        errorMessage: null, 
+        hasRentedRoom: !!appData, 
+        user: req.session.user 
+    });
 });
 
 router.post('/profile-settings/update', isTenant, async (req, res) => {
     const { firstName, lastName, suffix, gender, contactNo } = req.body;
     const userId = req.session.user._id || req.session.user.id;
+    
     const updatedUser = await User.findByIdAndUpdate(userId, { firstName: firstName.trim(), lastName: lastName.trim() }, { returnDocument: 'after' });
-    req.session.user.first_name = updatedUser.firstName; req.session.user.last_name = updatedUser.lastName;
+    req.session.user.first_name = updatedUser.firstName; 
+    req.session.user.last_name = updatedUser.lastName;
+    
     const tenantData = await Tenant.findOne({ user: userId });
     if (tenantData) {
         tenantData.contactNo = contactNo.trim() + (tenantData.contactNo.includes("EXT:") ? " EXT:" + tenantData.contactNo.split("EXT:")[1] : "");
-        tenantData.suffix = suffix.trim(); tenantData.gender = gender;
+        tenantData.suffix = suffix.trim(); 
+        tenantData.gender = gender;
         await tenantData.save();
     }
     res.redirect('/profile-settings');
@@ -275,10 +384,13 @@ router.post('/profile-settings/update', isTenant, async (req, res) => {
 
 router.post('/profile-settings/password', isTenant, async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
-    const dbUser = await User.findById(req.session.user._id || req.session.user.id);
+    const userId = req.session.user._id || req.session.user.id;
+    const dbUser = await User.findById(userId);
     const bcrypt = require('bcryptjs');
+    
     if (newPassword.length >= 8 && newPassword === confirmPassword && (await bcrypt.compare(currentPassword, dbUser.password))) {
-        dbUser.password = newPassword; await dbUser.save();
+        dbUser.password = newPassword; 
+        await dbUser.save();
     }
     res.redirect('/profile-settings');
 });

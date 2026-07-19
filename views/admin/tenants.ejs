@@ -2,52 +2,46 @@
 <div class="flex h-screen bg-slate-50 overflow-hidden">
     <%- include('../partials/adminSidebar') %>
     <div class="flex-1 flex flex-col overflow-hidden">
-        <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 relative z-50">
-            <h2 class="text-2xl font-bold text-[#1e293b] m-0 tracking-tight">Tenant Master Directory</h2>
+        <header class="h-20 bg-white border-b border-gray-200 flex items-center px-8 shrink-0 relative z-50">
+            <h2 class="text-2xl font-bold text-[#1e293b] m-0 tracking-tight">Active Tenant Directory</h2>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-8">
+        <main class="flex-1 overflow-y-auto p-6 md:p-8">
             <div class="max-w-7xl mx-auto space-y-6">
-                <!--Master Registry Audit Log Data Rows List Table Block Frame Layout Container-->
                 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead class="bg-slate-100/75 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <tr>
-                                <th class="px-6 py-4">Tenant Account Name</th>
-                                <th class="px-6 py-4">Allotted Unit</th>
-                                <th class="px-6 py-4">Contact Phone Key</th>
-                                <th class="px-6 py-4">Lease State Status</th>
-                                <th class="px-6 py-4 text-center">Administrative Actions</th>
+                                <th class="py-4 px-6">Occupant Name</th>
+                                <th class="py-4 px-6">Credentials</th>
+                                <th class="py-4 px-6">Gender</th>
+                                <th class="py-4 px-6">Assigned Unit</th>
+                                <th class="py-4 px-6">Contact Number</th>
+                                <th class="py-4 px-6 text-center">Operational Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <% tenants.forEach(function(t) { %>
-                                <tr class="hover:bg-slate-50 transition-colors">
-                                    <td class="px-6 py-4 font-medium text-slate-800"><%= t.user.firstName %> <%= t.user.lastName %></td>
-                                    <td class="px-6 py-4 font-bold text-indigo-600">Room <%= t.roomName %></td>
-                                    <td class="px-6 py-4 text-slate-500 font-mono"><%= (t.contactNo || '').split("EXT:")[0].trim() %></td>
-                                    <td class="px-6 py-4">
-                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold <%= t.status === 'Pending Moveout' ? 'bg-amber-100 text-amber-800 border border-amber-200 animate-pulse' : 'bg-emerald-100 text-emerald-800' %>">
-                                            ● <%= t.status %>
-                                        </span>
+                                <tr class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-4 px-6 font-semibold text-slate-800">
+                                        <%= t.user.firstName %> <%= t.user.lastName %>
+                                        <div class="text-[10px] text-slate-400 font-normal"><%= t.user.emailAddress %></div>
                                     </td>
-                                    <td class="px-6 py-4 text-center">
-                                        <div class="flex items-center justify-center gap-2">
-                                            <!-- Dynamic User History Ledger View Link Button -->
-                                            <% if (t.userId) { %>
-                                                <a href="/admin/tenants/<%= t.userId %>/history" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border border-indigo-200 shadow-sm transition-all no-underline inline-block">
-                                                    <i class="fa-solid fa-receipt mr-1"></i> History
-                                                </a>
-                                            <% } %>
-
-                                            <% if (t.status === 'Pending Moveout') { %>
-                                                <form action="/admin/tenants/<%= t.id %>/archive" method="POST" class="m-0 inline-block">
-                                                    <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg border-0 cursor-pointer shadow-sm transition-all">
-                                                        Authorize Move-out
-                                                    </button>
-                                                </form>
-                                            <% } %>
+                                    <!-- Integrated Document Access links -->
+                                    <td class="py-4 px-6">
+                                        <div class="flex gap-2">
+                                            <a href="/uploads/applications/<%= t.idFront %>" target="_blank" class="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold hover:bg-indigo-100 no-underline">ID</a>
+                                            <a href="/uploads/applications/<%= t.nbi %>" target="_blank" class="text-[10px] bg-rose-50 text-rose-700 px-2 py-1 rounded font-bold hover:bg-rose-100 no-underline">NBI</a>
                                         </div>
+                                    </td>
+                                    <td class="py-4 px-6 text-xs text-slate-500 font-medium"><%= t.gender || 'Not Specified' %></td>
+                                    <td class="py-4 px-6 font-bold text-indigo-600">Room <%= t.roomName %></td>
+                                    <td class="py-4 px-6 text-slate-700 font-mono font-bold">+63 <%= t.contactNo.split("EXT:")[0].trim() %></td>
+                                    <td class="py-4 px-6 flex items-center justify-center gap-2">
+                                        <a href="/admin/tenants/<%= t.userId %>/history" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg no-underline transition-all"><i class="fa-solid fa-receipt mr-1"></i>Ledger</a>
+                                        <form action="/admin/tenants/<%= t.id %>/archive" method="POST" class="m-0 inline-block" onsubmit="return confirm('Archive this tenant?');">
+                                            <button type="submit" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-all"><i class="fa-solid fa-box-archive mr-1"></i>Evict</button>
+                                        </form>
                                     </td>
                                 </tr>
                             <% }); %>

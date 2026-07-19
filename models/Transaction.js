@@ -28,6 +28,10 @@ const TransactionSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'completed'],
         default: 'completed'
+    },
+    tenantPaid: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });   
 

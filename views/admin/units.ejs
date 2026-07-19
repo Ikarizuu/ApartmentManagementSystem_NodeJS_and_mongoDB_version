@@ -9,9 +9,11 @@
         <main class="flex-1 overflow-y-auto p-8">
             <div class="max-w-7xl mx-auto space-y-6">
                 <!-- Apartment Space Inventory Rooms Grid Layout -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
                     <% units.forEach(function(unit) { %>
-                        <div class="bg-white border rounded-2xl p-5 transition-all hover:shadow-md relative flex flex-col justify-between <%= unit.status === 'vacant' ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200' %>">
+                        <div class="bg-white border rounded-2xl p-5 border-slate-200 flex flex-col justify-between hover:shadow-md <%= unit.status === 'vacant' ? 'border-amber-200 bg-amber-50/30' : '' %>">
+                            
+                            <!-- Top Identity & Tracking Block -->
                             <div>
                                 <div class="flex justify-between items-start">
                                     <div class="text-xl font-bold text-slate-800">Room <%= unit.roomName %></div>
@@ -21,42 +23,81 @@
                                 </div>
                                 <div class="text-[11px] text-slate-400 mt-0.5">Studio Unit Layout</div>
                                 
-                                <% if (unit.status === 'active') { %>
-                                    <div class="mt-2 text-xs font-bold text-rose-500">
-                                        <i class="fa-regular fa-clock"></i> Next Deadline: <%= unit.deadline %>
-                                    </div>
-                                <% } %>
+                                <div class="mt-3 pt-3 border-t border-slate-100 space-y-1 text-xs text-slate-600">
+                                    <div><span class="text-slate-400 font-semibold">Primary Tenant:</span> <span class="font-bold text-slate-800"><%= unit.tenantName %></span></div>
+                                    <% if (unit.status === 'active') { %>
+                                        <div><span class="text-slate-400 font-semibold">Active Occupants:</span> <span class="font-bold text-indigo-600 font-mono"><%= unit.occupants %> / 4 Pax</span></div>
+                                        
+                                        <!-- Unified Due Date & Utility Month Status Line -->
+                                        <div class="mt-2 text-xs font-bold text-rose-500 flex flex-wrap items-center gap-1.5">
+                                            <span class="flex items-center gap-1 shrink-0">
+                                                <i class="fa-regular fa-clock"></i> Next Due Target: <%= unit.deadline %>
+                                            </span>
+                                            <% const currentMonthName = new Date().toLocaleString('en-US', { month: 'long' }); %>
+                                            <% if (unit.isPaidThisMonth) { %>
+                                                <span class="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 italic">
+                                                    (Utilities paid for the month of <%= currentMonthName %>)
+                                                </span>
+                                            <% } else if (unit.isBilled) { %>
+                                                <span class="text-[11px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 italic animate-pulse">
+                                                    (Utilities billed for the month of <%= currentMonthName %>)
+                                                </span>
+                                            <% } %>
+                                        </div>
+                                    <% } %>
+                                </div>
                             </div>
 
-                            <!-- Consolidated Unit Modification Form -->
-                            <form action="/admin/rooms/update-unit" method="POST" class="mt-4 pt-4 border-t border-slate-100 space-y-3 text-left">
-                                <input type="hidden" name="roomName" value="<%= unit.roomName %>" />
-                                
-                                <!-- Edit Base Rent Option available to ALL units -->
-                                <div class="space-y-1">
-                                    <label class="text-[9px] uppercase font-black tracking-wider text-slate-500 block">Base Monthly Rent (₱)</label>
-                                    <input type="number" name="baseRent" value="<%= unit.monthlyRent %>" required min="0" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-indigo-600 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500" />
-                                </div>
-
-                                <!-- Utility Inputs (Only shows if there is an active tenant paying them) -->
-                                <% if (unit.status === 'active') { %>
-                                    <label class="text-[9px] uppercase font-black tracking-wider text-slate-500 block mt-2 pt-2 border-t border-slate-100/50">Utility Statements</label>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <div class="space-y-1">
-                                            <span class="text-[9px] font-bold text-slate-400 block">Electricity</span>
-                                            <input type="number" name="electricity" value="<%= unit.electricity %>" placeholder="Electricity (₱)" required min="0" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500" />
-                                        </div>
-                                        <div class="space-y-1">
-                                            <span class="text-[9px] font-bold text-slate-400 block">Water</span>
-                                            <input type="number" name="water" value="<%= unit.water %>" placeholder="Water (₱)" required min="0" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500" />
+                            <!-- Bottom Action Forms Configuration Stack -->
+                            <div class="pt-4 border-t border-slate-100 space-y-4 mt-6">
+                                <!-- Form 1: Base Rent Price Configuration -->
+                                <form action="/admin/rooms/update-price" method="POST" class="space-y-2 text-left">
+                                    <input type="hidden" name="roomName" value="<%= unit.roomName %>" />
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] uppercase font-black tracking-wider text-slate-500 block">Base Monthly Rent (₱)</label>
+                                        <div class="flex gap-2">
+                                            <input type="number" name="baseRent" value="<%= unit.monthlyRent %>" required min="0" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-indigo-600 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500" />
+                                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer shrink-0 transition-colors">Update Price</button>
                                         </div>
                                     </div>
-                                <% } %>
+                                </form>
 
-                                <button type="submit" class="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-2 rounded-lg text-[10px] border-0 cursor-pointer transition-colors shadow-sm mt-1">
-                                    Save Form Updates
-                                </button>
-                            </form>
+                                <!-- Form 2: Dynamic Utility Delivery Operational Layout -->
+                                <% if (unit.status === 'active') { %>
+                                    <form action="/admin/rooms/send-utility-invoice" method="POST" class="border-t border-dashed border-slate-100 pt-3 space-y-3 text-left">
+                                        <input type="hidden" name="roomName" value="<%= unit.roomName %>" />
+                                        <label class="text-[9px] uppercase font-black tracking-wider text-slate-500 block">Utility Adjustments</label>
+
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div class="space-y-1">
+                                                <span class="text-[9px] font-bold text-slate-400 block">Electricity</span>
+                                                <input type="number" name="electricity" value="<%= unit.electricity %>" placeholder="₱" required min="0" 
+                                                    <%= (unit.isBilled || unit.isPaidThisMonth) ? 'readonly class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-400 bg-slate-100 select-none outline-none"' : 'class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500"' %> />
+                                            </div>
+                                            <div class="space-y-1">
+                                                <span class="text-[9px] font-bold text-slate-400 block">Water</span>
+                                                <input type="number" name="water" value="<%= unit.water %>" placeholder="₱" required min="0" 
+                                                    <%= (unit.isBilled || unit.isPaidThisMonth) ? 'readonly class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-400 bg-slate-100 select-none outline-none"' : 'class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-slate-50 outline-none focus:ring-1 focus:ring-indigo-500"' %> />
+                                            </div>
+                                        </div>
+
+                                        <!-- Dynamic Button Swapping depending on the cycle state -->
+                                        <% if (unit.isPaidThisMonth) { %>
+                                            <button type="button" disabled class="w-full bg-emerald-50 text-emerald-700 font-bold py-2 rounded-lg text-[10px] border border-emerald-200 cursor-not-allowed select-none">
+                                                <i class="fa-solid fa-circle-check mr-1"></i> Current Utilities Settled
+                                            </button>
+                                        <% } else if (unit.isBilled) { %>
+                                            <button type="button" disabled class="w-full bg-slate-100 text-slate-400 font-bold py-2 rounded-lg text-[10px] border border-slate-200 cursor-not-allowed opacity-60 select-none">
+                                                Invoice Awaiting Settlement
+                                            </button>
+                                        <% } else { %>
+                                            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-[10px] border-0 cursor-pointer transition-colors shadow-sm">
+                                                <i class="fa-solid fa-paper-plane mr-1"></i> Send Utility Invoice
+                                            </button>
+                                        <% } %>
+                                    </form>
+                                <% } %>
+                            </div>
 
                         </div>
                     <% }); %>
@@ -65,4 +106,9 @@
         </main>
     </div>
 </div>
+<script>
+    if (window.history.replaceState) {
+        window.history.replaceState(null, null, window.location.href);
+    }
+</script>
 <%- include('../partials/footer') %>

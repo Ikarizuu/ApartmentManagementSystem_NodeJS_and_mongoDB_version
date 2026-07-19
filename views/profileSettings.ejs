@@ -12,7 +12,6 @@
                     Update your personal information and manage account security parameters.
                 </p>
             </div>
-            <!--Trigger Button for password modal-->
             <button 
                 type="button" 
                 onclick="openPasswordModal()"
@@ -23,7 +22,6 @@
             </button>
         </div>
 
-        <!--Status Alerts-->
         <% if (typeof successMessage !== 'undefined' && successMessage) { %>
             <div class="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold">
                 <i class="fa-solid fa-circle-check mr-1.5"></i><%= successMessage %>
@@ -35,7 +33,6 @@
             </div>
         <% } %>
 
-        <!--Profile Details Card-->
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
             <h3 class="text-lg font-bold text-[#3b4276] m-0 border-b border-slate-100 pb-3 mb-6">
                 <i class="fa-solid fa-address-card mr-2"></i>Personal Information
@@ -56,22 +53,39 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="flex flex-col space-y-1.5">
                         <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Suffix (Optional)</label>
-                        <input type="text" name="suffix" value="<%= (typeof dbUser !== 'undefined' && dbUser) ? (dbUser.suffix || '') : '' %>" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Jr., III" />
+                        <input type="text" name="suffix" value="<%= dbUser.suffix %>" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Jr., III" />
                     </div>
+                    
                     <div class="flex flex-col space-y-1.5">
                         <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Gender</label>
-                        <select name="gender" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                            <option value="" <%= (typeof dbUser === 'undefined' || !dbUser || !dbUser.gender) ? 'selected' : '' %>>Select Gender</option>
-                            <option value="Male" <%= (typeof dbUser !== 'undefined' && dbUser && dbUser.gender === 'Male') ? 'selected' : '' %>>Male</option>
-                            <option value="Female" <%= (typeof dbUser !== 'undefined' && dbUser && dbUser.gender === 'Female') ? 'selected' : '' %>>Female</option>
-                            <option value="Other" <%= (typeof dbUser !== 'undefined' && dbUser && dbUser.gender === 'Other') ? 'selected' : '' %>>Other</option>
-                        </select>
+                        <% if (isRealTenant) { %>
+                            <select name="gender" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="" <%= !dbUser.gender ? 'selected' : '' %>>Select Gender</option>
+                                <option value="Male" <%= dbUser.gender === 'Male' ? 'selected' : '' %>>Male</option>
+                                <option value="Female" <%= dbUser.gender === 'Female' ? 'selected' : '' %>>Female</option>
+                                <option value="Other" <%= dbUser.gender === 'Other' ? 'selected' : '' %>>Other</option>
+                            </select>
+                        <% } else { %>
+                            <input type="text" value="<%= dbUser.gender || 'Not Specified' %>" readonly class="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 text-sm cursor-not-allowed outline-none" />
+                            <input type="hidden" name="gender" value="<%= dbUser.gender %>" />
+                        <% } %>
                     </div>
                 </div>
 
                 <div class="flex flex-col space-y-1.5">
                     <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Contact Number</label>
-                    <input type="text" name="contactNo" value="<%= (typeof dbUser !== 'undefined' && dbUser) ? (dbUser.contactNo || '') : '' %>" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="09XXXXXXXXX" />
+                    <% if (isRealTenant) { %>
+                        <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/20">
+                            <span class="bg-slate-100 text-slate-500 text-sm font-bold px-3 py-2.5 select-none border-r border-slate-200">+63</span>
+                            <input type="text" name="contactNo" value="<%= dbUser.contactNo %>" required class="w-full px-3 py-2.5 bg-transparent border-0 text-slate-800 text-sm outline-none" placeholder="9XXXXXXXXX" />
+                        </div>
+                    <% } else { %>
+                        <div class="flex items-center bg-slate-100 border border-slate-200 rounded-xl overflow-hidden cursor-not-allowed">
+                            <span class="bg-slate-200 text-slate-400 text-sm font-bold px-3 py-2.5 select-none border-r border-slate-200">+63</span>
+                            <input type="text" value="<%= dbUser.contactNo || '' %>" readonly class="w-full px-3 py-2.5 bg-transparent border-0 text-slate-400 text-sm cursor-not-allowed outline-none" />
+                        </div>
+                        <input type="hidden" name="contactNo" value="<%= dbUser.contactNo %>" />
+                    <% } %>
                 </div>
 
                 <div class="flex flex-col space-y-1.5">
@@ -86,21 +100,51 @@
                 </div>
             </form>
         </div>
+
+        <% if (dbUser.documents) { %>
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+                <h3 class="text-lg font-bold text-[#3b4276] m-0 border-b border-slate-100 pb-3 mb-6">
+                    <i class="fa-solid fa-file-shield mr-2 text-indigo-500"></i>Submitted Verification Records
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="flex flex-col space-y-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase">Valid ID (Front)</label>
+                        <div class="border border-slate-200 rounded-2xl h-40 bg-slate-50 overflow-hidden relative group">
+                            <img src="/<%= dbUser.documents.validIdFrontPath %>" class="w-full h-full object-cover" alt="ID Front" />
+                            <a href="/<%= dbUser.documents.validIdFrontPath %>" target="_blank" class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity no-underline"><i class="fa-solid fa-expand mr-1.5"></i>Maximize</a>
+                        </div>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase">Valid ID (Back)</label>
+                        <div class="border border-slate-200 rounded-2xl h-40 bg-slate-50 overflow-hidden relative group">
+                            <img src="/<%= dbUser.documents.validIdBackPath %>" class="w-full h-full object-cover" alt="ID Back" />
+                            <a href="/<%= dbUser.documents.validIdBackPath %>" target="_blank" class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity no-underline"><i class="fa-solid fa-expand mr-1.5"></i>Maximize</a>
+                        </div>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase">NBI Clearance Copy</label>
+                        <div class="border border-slate-200 rounded-2xl h-40 bg-slate-50 overflow-hidden relative group flex items-center justify-center">
+                            <% if (dbUser.documents.nbiClearancePath.toLowerCase().endsWith('.pdf')) { %>
+                                <div class="text-center p-4">
+                                    <i class="fa-solid fa-file-pdf text-4xl text-rose-500 mb-2"></i>
+                                    <a href="/<%= dbUser.documents.nbiClearancePath %>" target="_blank" class="text-indigo-600 block text-xs font-bold hover:underline no-underline">Open PDF Document</a>
+                                </div>
+                            <% } else { %>
+                                <img src="/<%= dbUser.documents.nbiClearancePath %>" class="w-full h-full object-cover" alt="NBI Copy" />
+                                <a href="/<%= dbUser.documents.nbiClearancePath %>" target="_blank" class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-opacity no-underline"><i class="fa-solid fa-expand mr-1.5"></i>Maximize</a>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
     </div>
 </div>
 
 <!--Change Password Modal Overlay-->
-<div 
-    id="password-modal" 
-    class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all"
->
+<div id="password-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all">
     <div class="bg-white w-full max-w-md rounded-3xl border border-slate-100 shadow-2xl p-6 md:p-8 text-left relative animate-fade-in">
-        <!--Close Modal Button-->
-        <button 
-            type="button" 
-            onclick="closePasswordModal()" 
-            class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg"
-        >
+        <button type="button" onclick="closePasswordModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg">
             <i class="fa-solid fa-xmark"></i>
         </button>
 
@@ -109,58 +153,65 @@
         </h3>
 
         <form class="space-y-4" action="/profile-settings/password" method="POST">
-            <div class="flex flex-col space-y-1.5">
+            <div class="flex flex-col space-y-1.5 relative w-full">
                 <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Current Password</label>
-                <input type="password" name="currentPassword" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <input type="password" id="current-password" name="currentPassword" required class="w-full px-4 py-2.5 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <button type="button" onclick="togglePasswordVisibility('current-password', this)" class="absolute right-4 top-[38px] text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-0 cursor-pointer p-1 flex items-center justify-center outline-none">
+                    <svg class="w-4 h-4 eye-icon-open" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    <svg class="w-4 h-4 eye-icon-closed hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"></path></svg>
+                </button>
             </div>
 
-            <div class="flex flex-col space-y-1.5">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">New Password (Min 8 characters)</label>
-                <input type="password" name="newPassword" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            <div class="flex flex-col space-y-1.5 relative w-full">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">New Password</label>
+                <input type="password" id="new-password" name="newPassword" required class="w-full px-4 py-2.5 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <button type="button" onclick="togglePasswordVisibility('new-password', this)" class="absolute right-4 top-[38px] text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-0 cursor-pointer p-1 flex items-center justify-center outline-none">
+                    <svg class="w-4 h-4 eye-icon-open" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    <svg class="w-4 h-4 eye-icon-closed hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"></path></svg>
+                </button>
             </div>
 
-            <div class="flex flex-col space-y-1.5">
+            <div class="flex flex-col space-y-1.5 relative w-full">
                 <label class="text-xs font-bold text-slate-500 uppercase tracking-wide">Confirm New Password</label>
-                <input type="password" name="confirmPassword" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <input type="password" id="confirm-password" name="confirmPassword" required class="w-full px-4 py-2.5 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <button type="button" onclick="togglePasswordVisibility('confirm-password', this)" class="absolute right-4 top-[38px] text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-0 cursor-pointer p-1 flex items-center justify-center outline-none">
+                    <svg class="w-4 h-4 eye-icon-open" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    <svg class="w-4 h-4 eye-icon-closed hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"></path></svg>
+                </button>
             </div>
 
             <div class="pt-4 flex gap-3">
-                <button 
-                    type="button" 
-                    onclick="closePasswordModal()" 
-                    class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs border-0 cursor-pointer transition-all"
-                >
-                    Cancel
-                </button>
-                <button 
-                    type="submit" 
-                    class="flex-1 bg-[#10b981] hover:bg-[#059669] text-white font-bold py-3 rounded-xl text-xs border-0 cursor-pointer shadow-md transition-all"
-                >
-                    Update Password
-                </button>
+                <button type="button" onclick="closePasswordModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs border-0 cursor-pointer transition-all">Cancel</button>
+                <button type="submit" class="flex-1 bg-[#10b981] hover:bg-[#059669] text-white font-bold py-3 rounded-xl text-xs border-0 cursor-pointer shadow-md transition-all">Update Password</button>
             </div>
         </form>
     </div>
 </div>
 
-<!--Modal Control Script-->
 <script>
     function openPasswordModal() {
-        const modal = document.getElementById('password-modal');
-        modal.classList.remove('hidden');
+        document.getElementById('password-modal').classList.remove('hidden');
     }
-
     function closePasswordModal() {
-        const modal = document.getElementById('password-modal');
-        modal.classList.add('hidden');
+        document.getElementById('password-modal').classList.add('hidden');
     }
-
-    //Close the modal automatically if the user clicks the outer backdrop area
+    function togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const eyeOpen = btn.querySelector('.eye-icon-open');
+        const eyeClosed = btn.querySelector('.eye-icon-closed');
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeOpen.classList.add('hidden');
+            eyeClosed.classList.remove('hidden');
+        } else {
+            input.type = 'password';
+            eyeOpen.classList.remove('hidden');
+            eyeClosed.classList.add('hidden');
+        }
+    }
     window.addEventListener('click', function(event) {
         const modal = document.getElementById('password-modal');
-        if (event.target === modal) {
-            closePasswordModal();
-        }
+        if (event.target === modal) closePasswordModal();
     });
 </script>
 

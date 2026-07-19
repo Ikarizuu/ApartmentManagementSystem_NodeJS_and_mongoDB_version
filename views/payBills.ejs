@@ -57,6 +57,28 @@
                         <h3 class="text-lg font-bold m-0 text-[#3b4276]">Statement Ledger</h3>
                     </div>
 
+                    <!-- Amber Alert for Pending Rent Payment -->
+                    <% if (typeof isWaitingRentConfirmation !== 'undefined' && isWaitingRentConfirmation) { %>
+                        <div class="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex gap-2.5 items-start text-amber-800 text-xs shadow-sm">
+                            <i class="fa-solid fa-hourglass-half text-amber-500 mt-0.5 animate-pulse"></i>
+                            <div class="space-y-0.5">
+                                <span class="font-bold block text-sm">Rent Payment Processing</span>
+                                <span class="opacity-90 block leading-relaxed">Your monthly rent cash submission has been logged and is awaiting review.</span>
+                            </div>
+                        </div>
+                    <% } %>
+
+                    <!-- Amber Alert for Pending Utility Payment -->
+                    <% if (typeof isWaitingUtilityConfirmation !== 'undefined' && isWaitingUtilityConfirmation) { %>
+                        <div class="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex gap-2.5 items-start text-amber-800 text-xs shadow-sm">
+                            <i class="fa-solid fa-hourglass-half text-amber-500 mt-0.5 animate-pulse"></i>
+                            <div class="space-y-0.5">
+                                <span class="font-bold block text-sm">Utility Payment Processing</span>
+                                <span class="opacity-90 block leading-relaxed">Your utility cash settlement is awaiting verification by management.</span>
+                            </div>
+                        </div>
+                    <% } %>
+
                     <% if (canPayRent || utilityBills.length > 0) { %>
                         <div class="p-3.5 bg-rose-50 rounded-2xl border border-rose-100 flex gap-2.5 items-center text-rose-700 text-xs select-none shadow-sm">
                             <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
@@ -86,13 +108,16 @@
                                 </div>
                                 <% runningTotal += actualBaseRent; %>
                             <% } else { %>
-                                <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex gap-2.5 items-start text-emerald-700 text-xs shadow-sm">
-                                    <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5"></i>
-                                    <div class="space-y-1">
-                                        <span class="font-bold block text-sm">Rent Settlement Complete</span>
-                                        <span class="opacity-90 block leading-relaxed"><%= rentLockReason %></span>
+                                <!-- FIXED: Only show the "Rent Settlement Complete" success badge if there isn't a rent confirmation pending -->
+                                <% if (typeof isWaitingRentConfirmation === 'undefined' || !isWaitingRentConfirmation) { %>
+                                    <div class="bg-emerald-50 rounded-2xl border border-emerald-100 p-4 flex gap-2.5 items-start text-emerald-700 text-xs shadow-sm">
+                                        <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5"></i>
+                                        <div class="space-y-1">
+                                            <span class="font-bold block text-sm">Rent Settlement Complete</span>
+                                            <span class="opacity-90 block leading-relaxed"><%= rentLockReason %></span>
+                                        </div>
                                     </div>
-                                </div>
+                                <% } %>
                             <% } %>
 
                             <% if (utilityBills && utilityBills.length > 0) { %>
