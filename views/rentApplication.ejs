@@ -1,6 +1,15 @@
 <%- include('partials/header') %>
 <%- include('partials/topbar') %>
 
+<% 
+    let preSuffix = pastApp ? pastApp.suffix : '';
+    let preGender = pastApp ? pastApp.gender : '';
+    let preContact = pastApp && pastApp.contactNo ? pastApp.contactNo.split("EXT:")[0].trim() : '';
+    let preOccupants = pastApp ? pastApp.occupants : 1;
+    let preMonths = pastApp ? pastApp.monthsOfRent : 3;
+    let docs = pastApp && pastApp.documents ? pastApp.documents : null;
+%>
+
 <div class="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
     <div class="w-full max-w-3xl space-y-8 flex flex-col justify-start text-left">
         <div>
@@ -15,22 +24,18 @@
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
             <form id="applicationForm" class="space-y-6" action="/rent-application" method="POST" enctype="multipart/form-data">
                 
-                <!--Hidden Field to preserve Selected Room Value-->
                 <input type="hidden" name="roomRequested" value="<%= roomSelection %>" />
 
-                <!--Selected Room Display with Change Room Link back to Preview-->
                 <div class="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="flex items-center gap-3 text-indigo-900 font-bold text-sm">
                         <i class="fa-solid fa-door-open text-indigo-500 text-lg"></i>
                         <span>Selected Room: <span class="text-indigo-600"><%= roomSelection %></span></span>
                     </div>
-                    <!--Go back to the catalog grid page to safely change room selection-->
                     <a href="/preview" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs border-0 text-center no-underline transition-all shadow-sm">
                         Change Room Selection
                     </a>
                 </div>
 
-                <!--Personal Info Syncing Fields (Auto-filled and Read-only)-->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="flex flex-col space-y-1.5">
                         <label class="text-xs font-bold text-slate-500 uppercase">First Name</label>
@@ -42,31 +47,28 @@
                     </div>
                 </div>
 
-                <!--Email Field Display-->
                 <div class="flex flex-col space-y-1.5">
                     <label class="text-xs font-bold text-slate-500 uppercase">Registered Email Address</label>
                     <input type="email" value="<%= user.email_address %>" readonly class="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-sm outline-none cursor-not-allowed" />
                 </div>
 
-                <!--Suffix & Gender Fields-->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="flex flex-col space-y-1.5">
                         <label class="text-xs font-bold text-slate-500 uppercase">Suffix</label>
-                        <input type="text" id="suffix" name="suffix" placeholder="e.g. Jr" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none" />
+                        <input type="text" id="suffix" name="suffix" value="<%= preSuffix %>" placeholder="e.g. Jr" class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none" />
                     </div>
                     <div class="flex flex-col space-y-1.5 col-span-2">
                         <label class="text-xs font-bold text-slate-500 uppercase">Gender</label>
                         <select id="gender" name="gender" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none">
-                            <option value="">Select Gender</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                            <option value="Other">Other</option>
+                            <option value="" <%= preGender === '' ? 'selected' : '' %>>Select Gender</option>
+                            <option value="Male" <%= preGender === 'Male' ? 'selected' : '' %>>Male</option>
+                            <option value="Female" <%= preGender === 'Female' ? 'selected' : '' %>>Female</option>
+                            <option value="Other" <%= preGender === 'Other' ? 'selected' : '' %>>Other</option>
                         </select>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <!--Contact Number with non-removable Prefix and limited 10-digit input constraint-->
                     <div class="flex flex-col space-y-1.5">
                         <label class="text-xs font-bold text-slate-500 uppercase">Contact Number</label>
                         <div class="flex items-center bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/20">
@@ -75,6 +77,7 @@
                                 type="tel" 
                                 id="contactNo" 
                                 name="contactNo" 
+                                value="<%= preContact %>"
                                 placeholder="9123456789" 
                                 required 
                                 pattern="^9\d{9}$" 
@@ -87,61 +90,68 @@
                     </div>
                     <div class="flex flex-col space-y-1.5">
                         <label class="text-xs font-bold text-slate-500 uppercase">Number of Occupants</label>
-                        <input type="number" id="occupants" name="occupants" min="1" max="4" value="1" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none" />
+                        <input type="number" id="occupants" name="occupants" min="1" max="4" value="<%= preOccupants %>" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none" />
                     </div>
                 </div>
 
                 <div class="flex flex-col space-y-1.5">
                     <label class="text-xs font-bold text-slate-500 uppercase">Months of Intended Lease (Min: 3 Months)</label>
-                    <input type="number" id="monthsOfRent" name="monthsOfRent" min="3" value="3" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none" />
+                    <input type="number" id="monthsOfRent" name="monthsOfRent" min="3" value="<%= preMonths %>" required class="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm outline-none" />
                 </div>
 
-                <!--Required Document Copies-->
                 <div class="space-y-4 pt-4 border-t border-slate-100">
-                    <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider">Required Document Copies</h4>
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider m-0">Required Document Copies</h4>
+                        <% if (docs) { %>
+                            <span class="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2.5 py-1 rounded-md">Previous documents pre-loaded (Click boxes to replace)</span>
+                        <% } %>
+                    </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <!--Valid ID Front-->
                         <div class="flex flex-col space-y-2">
                             <label class="text-xs font-bold text-slate-600">Valid ID (Front View)</label>
                             <div class="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl h-40 bg-slate-50 flex flex-col items-center justify-center p-4 cursor-pointer transition-all overflow-hidden" onclick="document.getElementById('validIdFrontFile').click()">
-                                <img id="front-preview" class="hidden absolute inset-0 w-full h-full object-cover z-10" />
-                                <div id="front-icon" class="text-center space-y-1 z-0">
+                                <img id="front-preview" src="<%= docs ? '/' + docs.validIdFrontPath : '' %>" class="<%= docs ? '' : 'hidden' %> absolute inset-0 w-full h-full object-cover z-10" />
+                                <div id="front-icon" class="<%= docs ? 'hidden' : 'text-center space-y-1 z-0' %>">
                                     <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400"></i>
                                     <span class="text-[11px] font-semibold text-slate-500 block">Upload ID Front</span>
                                 </div>
                             </div>
-                            <input type="file" id="validIdFrontFile" name="validIdFrontFile" accept="image/*" class="hidden" onchange="previewFile(this, 'front-preview', 'front-icon')" required />
+                            <input type="file" id="validIdFrontFile" name="validIdFrontFile" accept="image/*" class="hidden" onchange="previewFile(this, 'front-preview', 'front-icon')" <%= docs ? '' : 'required' %> />
                         </div>
 
                         <!--Valid ID Back-->
                         <div class="flex flex-col space-y-2">
                             <label class="text-xs font-bold text-slate-600">Valid ID (Back View)</label>
                             <div class="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl h-40 bg-slate-50 flex flex-col items-center justify-center p-4 cursor-pointer transition-all overflow-hidden" onclick="document.getElementById('validIdBackFile').click()">
-                                <img id="back-preview" class="hidden absolute inset-0 w-full h-full object-cover z-10" />
-                                <div id="back-icon" class="text-center space-y-1 z-0">
+                                <img id="back-preview" src="<%= docs ? '/' + docs.validIdBackPath : '' %>" class="<%= docs ? '' : 'hidden' %> absolute inset-0 w-full h-full object-cover z-10" />
+                                <div id="back-icon" class="<%= docs ? 'hidden' : 'text-center space-y-1 z-0' %>">
                                     <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400"></i>
                                     <span class="text-[11px] font-semibold text-slate-500 block">Upload ID Back</span>
                                 </div>
                             </div>
-                            <input type="file" id="validIdBackFile" name="validIdBackFile" accept="image/*" class="hidden" onchange="previewFile(this, 'back-preview', 'back-icon')" required />
+                            <input type="file" id="validIdBackFile" name="validIdBackFile" accept="image/*" class="hidden" onchange="previewFile(this, 'back-preview', 'back-icon')" <%= docs ? '' : 'required' %> />
                         </div>
 
-                        <!--NBI Clearance (Accepts PDF & Images)-->
+                        <!--NBI Clearance-->
                         <div class="flex flex-col space-y-2">
                             <label class="text-xs font-bold text-slate-600">NBI Clearance Copy</label>
                             <div class="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl h-40 bg-slate-50 flex flex-col items-center justify-center p-4 cursor-pointer transition-all overflow-hidden" onclick="document.getElementById('nbiFile').click()">
-                                <img id="nbi-preview" class="hidden absolute inset-0 w-full h-full object-cover z-10" />
-                                <div id="nbi-pdf-indicator" class="hidden absolute inset-0 bg-indigo-50 flex flex-col items-center justify-center z-10 p-4">
+                                <% 
+                                    let isPdf = docs && docs.nbiClearancePath.toLowerCase().endsWith('.pdf');
+                                %>
+                                <img id="nbi-preview" src="<%= docs && !isPdf ? '/' + docs.nbiClearancePath : '' %>" class="<%= docs && !isPdf ? '' : 'hidden' %> absolute inset-0 w-full h-full object-cover z-10" />
+                                <div id="nbi-pdf-indicator" class="<%= docs && isPdf ? 'absolute inset-0 bg-indigo-50 flex flex-col items-center justify-center z-10 p-4' : 'hidden' %>">
                                     <i class="fa-solid fa-file-pdf text-4xl text-rose-500 mb-1"></i>
-                                    <span id="nbi-pdf-name" class="text-[10px] text-slate-600 font-bold truncate max-w-full">clearance.pdf</span>
+                                    <span id="nbi-pdf-name" class="text-[10px] text-slate-600 font-bold truncate max-w-full"><%= docs && isPdf ? docs.nbiClearancePath.split('/').pop() : 'clearance.pdf' %></span>
                                 </div>
-                                <div id="nbi-icon" class="text-center space-y-1 z-0">
+                                <div id="nbi-icon" class="<%= docs ? 'hidden' : 'text-center space-y-1 z-0' %>">
                                     <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400"></i>
                                     <span class="text-[11px] font-semibold text-slate-500 block">Upload NBI Copy</span>
                                 </div>
                             </div>
-                            <input type="file" id="nbiFile" name="nbiFile" accept="image/*,application/pdf" class="hidden" onchange="previewNBI(this)" required />
+                            <input type="file" id="nbiFile" name="nbiFile" accept="image/*,application/pdf" class="hidden" onchange="previewNBI(this)" <%= docs ? '' : 'required' %> />
                         </div>
                     </div>
                 </div>
@@ -157,7 +167,6 @@
 </div>
 
 <script>
-    //Live file preview rendering
     function previewFile(input, previewImgId, iconContainerId) {
         const previewImg = document.getElementById(previewImgId);
         const iconContainer = document.getElementById(iconContainerId);
@@ -172,7 +181,6 @@
         }
     }
 
-    //NBI preview rendering (Supporting PDF files dynamically)
     function previewNBI(input) {
         const previewImg = document.getElementById('nbi-preview');
         const pdfIndicator = document.getElementById('nbi-pdf-indicator');

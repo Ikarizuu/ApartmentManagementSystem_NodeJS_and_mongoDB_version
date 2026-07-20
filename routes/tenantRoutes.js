@@ -14,7 +14,8 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => {
         const lName = (req.body.lastName || 'User').replace(/[^a-zA-Z]/g, '');
         const fName = (req.body.firstName || 'Resident').replace(/[^a-zA-Z]/g, '');
-        cb(null, `${lName}-${fName}_${Date.now()}${path.extname(file.originalname)}`);
+        // Moved the timestamp to the front of the naming convention to prevent overlap
+        cb(null, `${Date.now()}_${lName}-${fName}${path.extname(file.originalname)}`);
     }
 });
 const upload = multer({ storage: storage });
@@ -29,8 +30,10 @@ async function getTenantBillingContext(userId) {
     const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
     const activeTenant = await Tenant.findOne({ user: userId, isArchived: false });
     
-    const allRentPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'completed' }).sort({ createdAt: 1 });
-    const pendingPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'pending' });
+    let appDate = application ? application.createdAt : new Date(0);
+    
+    const allRentPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'completed', createdAt: { $gte: appDate } }).sort({ createdAt: 1 });
+    const pendingPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'pending', createdAt: { $gte: appDate } });
     const totalPaidMonths = allRentPayments.length + pendingPayments.length;
 
     let startD = application ? new Date(application.createdAt) : new Date();
@@ -69,7 +72,7 @@ async function getTenantBillingContext(userId) {
     if (application) {
         const roomDoc = await Room.findOne({ roomName: application.roomRequested });
         if (roomDoc && roomDoc.utilities && roomDoc.utilities.isBilled) {
-            const pendingUtilTx = await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true });
+            const pendingUtilTx = await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true, createdAt: { $gte: appDate } });
             if (!pendingUtilTx) {
                 hasPendingUtilities = true;
                 if (roomDoc.utilities.electricity > 0) {
@@ -97,9 +100,6 @@ async function getTenantBillingContext(userId) {
     return { application, activeTenant, totalPaidMonths, contractMaxMonths, rentDueDateLabel, currentCycleStart, canPayRent, rentLockReason, utilityBills, showRedPing, validExtensions };
 }
 
-// ==================================================
-// NOTIFICATION SYSTEM & ARCHIVE
-// ==================================================
 router.post('/notifications/:id/read', isTenant, async (req, res) => {
     await User.findByIdAndUpdate(req.session.user._id || req.session.user.id, { $addToSet: { readAnnouncements: req.params.id } });
     res.json({ success: true });
@@ -154,9 +154,6 @@ router.get('/notifications/archived', isTenant, async (req, res) => {
     res.render('archivedNotifications', { archivedAnnouncements, hasRentedRoom, user: req.session.user });
 });
 
-// ==================================================
-// TRANSACTION HISTORY (TENANT SIDE)
-// ==================================================
 router.get('/transaction-history', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const transactions = await Transaction.find({ user: userId }).sort({ createdAt: -1 });
@@ -164,9 +161,6 @@ router.get('/transaction-history', isTenant, async (req, res) => {
     res.render('transactionHistory', { transactions, hasRentedRoom, user: req.session.user });
 });
 
-// ==================================================
-// GENERAL TENANT ROUTES
-// ==================================================
 router.get('/home', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
@@ -183,9 +177,20 @@ router.get('/preview', isTenant, async (req, res) => {
 
 router.get('/rent-application', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
+    
+    // Validates if they already have an active/pending room application
     const existingApp = await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'pending', 'active'] } });
     if (existingApp) return res.redirect('/my-room');
-    res.render('rentApplication', { roomSelection: req.query.room || 'Room A', user: req.session.user, hasRentedRoom: false });
+    
+    // Identifies historical profiles or rejected records to push toward the view
+    const pastApp = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+
+    res.render('rentApplication', { 
+        roomSelection: req.query.room || 'Room A', 
+        user: req.session.user, 
+        hasRentedRoom: false,
+        pastApp: pastApp || null 
+    });
 });
 
 router.post('/rent-application', isTenant, upload.fields([{ name: 'validIdFrontFile', maxCount: 1 }, { name: 'validIdBackFile', maxCount: 1 }, { name: 'nbiFile', maxCount: 1 }]), async (req, res) => {
@@ -202,17 +207,18 @@ router.get('/my-room', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const ctx = await getTenantBillingContext(userId);
     
-    // Automatically evict access securely if the application status marks as concluded/archived or missing
     if (!ctx.application || ctx.application.status === 'archived' || ctx.application.status === 'rejected') {
         return res.redirect('/preview');
     }
+
+    const appDate = ctx.application.createdAt;
 
     res.render('myRoom', { 
         application: ctx.application, 
         activeTenant: ctx.activeTenant,
         hasRentedRoom: true, user: req.session.user,
-        isPaid: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'completed' })),
-        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true })),
+        isPaid: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'completed', createdAt: { $gte: appDate } })),
+        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true, createdAt: { $gte: appDate } })),
         currentCycleStart: ctx.currentCycleStart, rentDueDateLabel: ctx.rentDueDateLabel,
         totalPaidMonths: ctx.totalPaidMonths, contractMaxMonths: ctx.contractMaxMonths,
         showRedPing: ctx.showRedPing, validExtensions: ctx.validExtensions
@@ -267,15 +273,17 @@ router.get('/pay-bills', isTenant, async (req, res) => {
     const baseRent = ctx.application.roomRequested.match(/Room [I-N]/) ? 3500 : 4000;
     const actualBaseRent = ctx.canPayRent ? baseRent : 0;
     
-    const isWaitingRentConfirmation = !!(await Transaction.findOne({ user: userId, type: 'rent', status: 'pending', tenantPaid: true }));
-    const isWaitingUtilityConfirmation = !!(await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true }));
+    const appDate = ctx.application.createdAt;
+
+    const isWaitingRentConfirmation = !!(await Transaction.findOne({ user: userId, type: 'rent', status: 'pending', tenantPaid: true, createdAt: { $gte: appDate } }));
+    const isWaitingUtilityConfirmation = !!(await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true, createdAt: { $gte: appDate } }));
 
     res.render('payBills', { 
         application: ctx.application, 
         activeTenant: ctx.activeTenant,
         actualBaseRent, canPayRent: ctx.canPayRent, rentLockReason: ctx.rentLockReason, 
         isFullyBoarded: !!ctx.activeTenant, hasRentedRoom: true, user: req.session.user, 
-        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true })),
+        isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true, createdAt: { $gte: appDate } })),
         isWaitingRentConfirmation,
         isWaitingUtilityConfirmation,
         utilityBills: ctx.utilityBills, currentPeriodLabel: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
@@ -284,77 +292,92 @@ router.get('/pay-bills', isTenant, async (req, res) => {
 });
 
 router.post('/pay-bills', isTenant, async (req, res) => {
-    const { amount, paymentMethod } = req.body;
-    const userId = req.session.user._id || req.session.user.id;
-    const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+    try {
+        const { amount, paymentMethod } = req.body;
+        const userId = req.session.user._id || req.session.user.id;
+        const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
 
-    const ctx = await getTenantBillingContext(userId);
-    let utilsTotal = ctx.utilityBills.reduce((sum, b) => sum + b.amount, 0);
-    let inputAmount = parseFloat(amount);
-    
-    const calculatedStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
-
-    if (utilsTotal > 0 && inputAmount >= utilsTotal) {
-        await new Transaction({
-            user: userId, roomName: application.roomRequested, amount: utilsTotal,
-            type: 'utilities', paymentMethod: paymentMethod, status: calculatedStatus, tenantPaid: true
-        }).save();
+        const ctx = await getTenantBillingContext(userId);
+        let utilsTotal = ctx.utilityBills.reduce((sum, b) => sum + b.amount, 0);
+        let inputAmount = parseFloat(amount);
         
-        if (calculatedStatus === 'completed') {
-            await Room.findOneAndUpdate(
-                { roomName: application.roomRequested },
-                { $set: { "utilities.isBilled": false } }
-            );
-            
-            await new Announcement({
-                title: "Utility Payment Successful! 🎉",
-                body: `Your utility parameter payment of ₱${utilsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} has been captured and validated seamlessly via ${paymentMethod.toUpperCase()}.`,
-                tag: 'General', sendTo: 'Specific', targetUser: userId, status: 'sent'
+        const calculatedStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
+
+        if (utilsTotal > 0 && inputAmount >= utilsTotal) {
+            await new Transaction({
+                user: userId, roomName: application.roomRequested, amount: utilsTotal,
+                type: 'utilities', paymentMethod: paymentMethod, status: calculatedStatus, tenantPaid: true
             }).save();
-        }
-        inputAmount -= utilsTotal;
-    }
-
-    if (inputAmount > 0) {
-        const activeTenant = await Tenant.findOne({ user: userId });
-        const targetType = activeTenant ? 'rent' : 'deposit';
-
-        await new Transaction({
-            user: userId, roomName: application.roomRequested, amount: inputAmount, 
-            type: targetType, paymentMethod: paymentMethod, status: calculatedStatus, tenantPaid: true
-        }).save();
-
-        if (calculatedStatus === 'completed') {
-            await new Announcement({
-                title: "Payment Completed Successfully! 🎉",
-                body: `Your transaction of ₱${inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} for room ${targetType} was authorized and fully processed via ${paymentMethod.toUpperCase()}.`,
-                tag: 'General', sendTo: 'Specific', targetUser: userId, status: 'sent'
-            }).save();
-        }
-
-        if (targetType === 'deposit' && calculatedStatus === 'completed') {
-            let room = await Room.findOne({ roomName: application.roomRequested });
-            if (room) {
-                room.isAvailable = false;
-                room.currentTenant = userId;
-                await room.save();
-            }
             
-            let sanitizedGender = 'Other';
-            if (application.gender && application.gender.trim().toLowerCase() === 'male') sanitizedGender = 'Male';
-            if (application.gender && application.gender.trim().toLowerCase() === 'female') sanitizedGender = 'Female';
-
-            if (!activeTenant) {
-                await new Tenant({ 
-                    user: userId, suffix: application.suffix || '', gender: sanitizedGender, contactNo: application.contactNo, room: room ? room._id : null, status: 'Active', isArchived: false
+            if (calculatedStatus === 'completed') {
+                await Room.findOneAndUpdate(
+                    { roomName: application.roomRequested },
+                    { $set: { "utilities.isBilled": false } }
+                );
+                
+                await new Announcement({
+                    title: "Utility Payment Successful! 🎉",
+                    body: `Your utility parameter payment of ₱${utilsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} has been captured and validated seamlessly via ${paymentMethod.toUpperCase()}.`,
+                    tag: 'General', sendTo: 'Specific', targetUser: userId, status: 'sent'
                 }).save();
             }
-            application.status = 'accepted';
-            await application.save();
+            inputAmount -= utilsTotal;
         }
-    }
 
-    return res.json({ status: calculatedStatus, amount, method: paymentMethod });
+        if (inputAmount > 0) {
+            const activeTenant = await Tenant.findOne({ user: userId, isArchived: false });
+            const targetType = activeTenant ? 'rent' : 'deposit';
+
+            await new Transaction({
+                user: userId, roomName: application.roomRequested, amount: inputAmount, 
+                type: targetType, paymentMethod: paymentMethod, status: calculatedStatus, tenantPaid: true
+            }).save();
+
+            if (calculatedStatus === 'completed') {
+                await new Announcement({
+                    title: "Payment Completed Successfully! 🎉",
+                    body: `Your transaction of ₱${inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} for room ${targetType} was authorized and fully processed via ${paymentMethod.toUpperCase()}.`,
+                    tag: 'General', sendTo: 'Specific', targetUser: userId, status: 'sent'
+                }).save();
+            }
+
+            if (targetType === 'deposit' && calculatedStatus === 'completed') {
+                let room = await Room.findOne({ roomName: application.roomRequested });
+                if (room) {
+                    room.isAvailable = false;
+                    room.currentTenant = userId;
+                    await room.save();
+                }
+                
+                let sanitizedGender = 'Other';
+                if (application.gender && application.gender.trim().toLowerCase() === 'male') sanitizedGender = 'Male';
+                if (application.gender && application.gender.trim().toLowerCase() === 'female') sanitizedGender = 'Female';
+
+                await Tenant.findOneAndUpdate(
+                    { user: userId },
+                    { 
+                        $set: {
+                            suffix: application.suffix || '',
+                            gender: sanitizedGender,
+                            contactNo: application.contactNo,
+                            room: room ? room._id : null,
+                            status: 'Active',
+                            isArchived: false
+                        }
+                    },
+                    { upsert: true, new: true }
+                );
+
+                application.status = 'accepted';
+                await application.save();
+            }
+        }
+
+        return res.json({ status: calculatedStatus, amount, method: paymentMethod });
+    } catch (err) {
+        console.error("Pay bills error:", err);
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 router.get('/profile-settings', isTenant, async (req, res) => {

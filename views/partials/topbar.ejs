@@ -8,11 +8,13 @@
             </style>
             <a href="/home" class="ams-topbar-logo text-white text-3xl italic font-bold tracking-wider no-underline transition-transform duration-200 hover:scale-105">AMS</a>
             <div class="hidden md:flex items-center space-x-6">
-                <a href="/home" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">Home</a>
+                <!-- LOGICAL SPLIT: Automatically swap standard Home vs Custom Hub -->
                 <% if (user && typeof hasRentedRoom !== 'undefined' && hasRentedRoom) { %>
                     <a href="/my-room" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">My Room Hub</a>
+                <% } else { %>
+                    <a href="/home" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">Home</a>
                 <% } %>
-                <!-- Visible Only for Current/Past Tenants -->
+                
                 <% if (typeof hasHistory !== 'undefined' && hasHistory) { %>
                     <a href="/transaction-history" class="text-sm font-medium transition-all duration-200 text-white/90 hover:text-white no-underline">Transaction History</a>
                 <% } %>
@@ -31,7 +33,6 @@
                     </button>
 
                     <div id="notification-dropdown" class="hidden absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 text-left flex flex-col max-h-[480px]">
-                        <!-- Enhanced Notification Header -->
                         <div class="px-4 py-2 border-b border-slate-100 flex flex-col gap-2">
                             <div class="flex items-center justify-between">
                                 <span class="font-bold text-slate-800 text-sm">Notifications</span>
@@ -102,7 +103,6 @@
     </div>
 </nav>
 
-<!-- Notification Reader Modal -->
 <div id="notif-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all">
     <div class="bg-white w-full max-w-md rounded-3xl border border-slate-100 shadow-2xl p-6 md:p-8 text-left relative">
         <button type="button" onclick="document.getElementById('notif-modal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg">

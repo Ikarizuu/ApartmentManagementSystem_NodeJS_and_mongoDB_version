@@ -12,20 +12,19 @@ const isAdmin = (req, res, next) => {
     res.redirect('/login');
 };
 
+// Global Middleware for Sidebar Badges
 router.use(async (req, res, next) => {
     if (req.session.user && req.session.user.role === 'admin') {
         res.locals.pendingAppsCount = await RentApplication.countDocuments({ status: 'pending' });
         res.locals.pendingPaymentsCount = await Transaction.countDocuments({ status: 'pending', tenantPaid: true });
-        
-        if (req.path === '/tenants') {
-            res.locals.pendingMoveoutCount = 0;
-        } else {
-            res.locals.pendingMoveoutCount = await Tenant.countDocuments({ status: 'Pending Moveout', isArchived: false });
-        }
+        res.locals.pendingMoveoutCount = await Tenant.countDocuments({ status: 'Pending Moveout', isArchived: false });
     }
     next();
 });
 
+// ==================================================
+// DASHBOARD
+// ==================================================
 router.get('/dashboard', isAdmin, async (req, res) => {
     try {
         const { timeframe, filterYear, filterMonth } = req.query;
@@ -76,6 +75,9 @@ router.get('/dashboard', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Server error'); }
 });
 
+// ==================================================
+// PAYMENTS & LEDGER
+// ==================================================
 router.get('/payments', isAdmin, async (req, res) => {
     try {
         const { timeframe, filterYear, filterMonth, sortOrder } = req.query;
@@ -127,17 +129,38 @@ router.post('/payments/:id/confirm', isAdmin, async (req, res) => {
 
             const application = await RentApplication.findOne({ user: transaction.user }).sort({ createdAt: -1 });
             if (application) {
-                application.status = 'accepted'; await application.save();
+                application.status = 'accepted'; 
+                await application.save();
+                
                 let room = await Room.findOne({ roomName: application.roomRequested }) || await Room.findOne({ roomName: `Room ${application.roomRequested}` });
-                if (!(await Tenant.findOne({ user: transaction.user }))) {
-                    await new Tenant({ user: transaction.user, suffix: application.suffix || '', gender: application.gender || 'Other', contactNo: application.contactNo, room: room ? room._id : null }).save();
-                }
+                
+                // DUPLICATE KEY FIX: Re-activate or update tenant document via upsert
+                await Tenant.findOneAndUpdate(
+                    { user: transaction.user },
+                    { 
+                        $set: {
+                            suffix: application.suffix || '',
+                            gender: application.gender || 'Other',
+                            contactNo: application.contactNo,
+                            room: room ? room._id : null,
+                            status: 'Active',
+                            isArchived: false
+                        }
+                    },
+                    { upsert: true, new: true }
+                );
             }
         }
         res.redirect('/admin/payments');
-    } catch (err) { res.status(500).send('Error'); }
+    } catch (err) { 
+        console.error("Confirm payment error:", err);
+        res.status(500).send('Error confirming payment'); 
+    }
 });
 
+// ==================================================
+// UNITS & ROOMS
+// ==================================================
 router.get('/rooms', isAdmin, async (req, res) => {
     try {
         const rooms = await Room.find().sort({ roomName: 1 });
@@ -154,7 +177,8 @@ router.get('/rooms', isAdmin, async (req, res) => {
                 const rentApp = await RentApplication.findOne({ user: r.currentTenant }).sort({ createdAt: -1 });
                 if (rentApp) occupantsCount = rentApp.occupants;
                 
-                const firstPay = await Transaction.findOne({ user: r.currentTenant, type: 'deposit', status: 'completed' }).sort({ createdAt: 1 });
+                let appDate = rentApp ? rentApp.createdAt : new Date(0);
+                const firstPay = await Transaction.findOne({ user: r.currentTenant, type: 'deposit', status: 'completed', createdAt: { $gte: appDate } }).sort({ createdAt: 1 });
                 if (firstPay) {
                     const bDay = firstPay.createdAt.getDate();
                     const today = new Date();
@@ -169,7 +193,7 @@ router.get('/rooms', isAdmin, async (req, res) => {
                     roomName: r.roomName,
                     type: 'utilities',
                     status: 'completed',
-                    createdAt: { $gte: startOfMonth }
+                    createdAt: { $gte: startOfMonth > appDate ? startOfMonth : appDate }
                 });
                 if (completeUtilityTx) isUtilityPaidThisMonth = true;
             }
@@ -223,6 +247,9 @@ router.post('/rooms/send-utility-invoice', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
+// ==================================================
+// ANNOUNCEMENTS
+// ==================================================
 router.get('/announcements', isAdmin, async (req, res) => {
     const { targetFilter } = req.query;
     const announcements = await Announcement.find(targetFilter && targetFilter !== 'All' ? { sendTo: targetFilter } : {}).sort({ createdAt: -1 });
@@ -244,6 +271,9 @@ router.post('/announcements/:id/delete', isAdmin, async (req, res) => {
     res.redirect('/admin/announcements');
 });
 
+// ==================================================
+// TENANTS DIRECTORY
+// ==================================================
 router.get('/tenants', isAdmin, async (req, res) => {
     const { search, sortOrder } = req.query;
     const activeProfiles = await Tenant.find({ isArchived: false }).populate('user').populate('room');
@@ -281,21 +311,18 @@ router.get('/tenants', isAdmin, async (req, res) => {
     res.render('admin/tenants', { tenants, search, sortOrder });
 });
 
-// CORE FIX: Handles direct eviction wiping OR authorized move-out finalizations precisely.
 router.post('/tenants/:id/archive', isAdmin, async (req, res) => {
     const tenant = await Tenant.findById(req.params.id).populate('room');
     if (tenant) {
         const { actionType } = req.body;
         
         if (actionType === 'finalize' || actionType === 'evict') {
-            // Unlocks room for next user and moves profile to historical cache securely
             if (tenant.room) await Room.findByIdAndUpdate(tenant.room._id, { isAvailable: true, currentTenant: null });
             tenant.isArchived = true;
             tenant.status = 'Archived';
             tenant.room = null;
             await tenant.save();
 
-            // Strips active tenancy dashboard by archiving the foundational root application completely
             await RentApplication.findOneAndUpdate(
                 { user: tenant.user, status: { $in: ['accepted', 'pending', 'active'] } },
                 { status: 'archived' },
@@ -313,7 +340,6 @@ router.post('/tenants/:id/archive', isAdmin, async (req, res) => {
                 tag: 'General', sendTo: 'Specific', targetUser: tenant.user, status: 'sent'
             }).save();
         } else if (actionType === 'moveout') {
-            // Allows them to naturally stay until the expiration of the cycle without being locked out instantly
             tenant.status = 'Final Term Active';
             await tenant.save();
 
@@ -327,21 +353,29 @@ router.post('/tenants/:id/archive', isAdmin, async (req, res) => {
     res.redirect('/admin/tenants');
 });
 
+// ==================================================
+// PAST TENANTS
+// ==================================================
 router.get('/past-tenants', isAdmin, async (req, res) => {
     const { search, timeframe, filterYear, filterMonth, sortOrder } = req.query;
     const archivedProfiles = await Tenant.find({ isArchived: true }).populate('user');
     
     let pastTenants = await Promise.all(archivedProfiles.map(async (t) => {
-        const userHistory = await Transaction.find({ user: t.user?._id, status: 'completed' });
-        const totalPaid = userHistory.reduce((sum, tx) => sum + tx.amount, 0);
         const app = await RentApplication.findOne({ user: t.user?._id }).sort({ createdAt: -1 });
+        let appDate = app ? app.createdAt : new Date(0);
+        
+        const userHistory = await Transaction.find({ user: t.user?._id, status: 'completed', createdAt: { $gte: appDate } });
+        const totalPaid = userHistory.reduce((sum, tx) => sum + tx.amount, 0);
+        
+        const safeDateObj = t.updatedAt || t.createdAt || new Date();
+        
         return { 
             userId: t.user ? t.user._id : null,
             user: t.user || { firstName: 'Deleted', lastName: 'User', emailAddress: 'N/A' }, 
             contactNo: t.contactNo.split("EXT:")[0].trim(), 
             totalPaid: totalPaid, 
-            archivedDate: t.updatedAt.toLocaleDateString(),
-            dateObj: t.updatedAt,
+            archivedDate: safeDateObj.toLocaleDateString(),
+            dateObj: safeDateObj,
             documents: app ? app.documents : null
         };
     }));
@@ -374,7 +408,10 @@ router.get('/tenants/:userId/history', isAdmin, async (req, res) => {
         const tenantUser = await User.findById(req.params.userId);
         if (!tenantUser) return res.status(404).send('User not found');
         
-        const historyLogs = await Transaction.find({ user: req.params.userId }).sort({ createdAt: -1 });
+        const app = await RentApplication.findOne({ user: req.params.userId }).sort({ createdAt: -1 });
+        let appDate = app ? app.createdAt : new Date(0);
+
+        const historyLogs = await Transaction.find({ user: req.params.userId, createdAt: { $gte: appDate } }).sort({ createdAt: -1 });
         const payments = historyLogs.map(tx => ({
             id: tx._id,
             roomName: tx.roomName.replace('Room ', ''),
@@ -389,6 +426,9 @@ router.get('/tenants/:userId/history', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
+// ==================================================
+// APPLICATIONS
+// ==================================================
 router.get('/applications', isAdmin, async (req, res) => {
     const applications = await RentApplication.find({ status: 'pending' }).sort({ createdAt: -1 });
     res.render('admin/applications', { applications });
