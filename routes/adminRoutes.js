@@ -12,19 +12,20 @@ const isAdmin = (req, res, next) => {
     res.redirect('/login');
 };
 
-// Global Middleware for Sidebar Badges
 router.use(async (req, res, next) => {
     if (req.session.user && req.session.user.role === 'admin') {
-        res.locals.pendingMoveoutCount = await Tenant.countDocuments({ status: 'Pending Moveout', isArchived: false });
         res.locals.pendingAppsCount = await RentApplication.countDocuments({ status: 'pending' });
         res.locals.pendingPaymentsCount = await Transaction.countDocuments({ status: 'pending', tenantPaid: true });
+        
+        if (req.path === '/tenants') {
+            res.locals.pendingMoveoutCount = 0;
+        } else {
+            res.locals.pendingMoveoutCount = await Tenant.countDocuments({ status: 'Pending Moveout', isArchived: false });
+        }
     }
     next();
 });
 
-// ==================================================
-// DASHBOARD
-// ==================================================
 router.get('/dashboard', isAdmin, async (req, res) => {
     try {
         const { timeframe, filterYear, filterMonth } = req.query;
@@ -75,9 +76,6 @@ router.get('/dashboard', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Server error'); }
 });
 
-// ==================================================
-// PAYMENTS & LEDGER
-// ==================================================
 router.get('/payments', isAdmin, async (req, res) => {
     try {
         const { timeframe, filterYear, filterMonth, sortOrder } = req.query;
@@ -110,7 +108,6 @@ router.post('/payments/:id/confirm', isAdmin, async (req, res) => {
             let notificationBody = `Your payment of ₱${transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} for ${transaction.type} has been successfully received and verified by management. Thank you!`;
 
             if (transaction.type === 'utilities') {
-                // FIXED: Keep the electricity and water digits stored so they don't reset to 0 in uneditable state
                 await Room.findOneAndUpdate(
                     { roomName: transaction.roomName },
                     { $set: { "utilities.isBilled": false } }
@@ -141,9 +138,6 @@ router.post('/payments/:id/confirm', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
-// ==================================================
-// UNITS & ROOMS
-// ==================================================
 router.get('/rooms', isAdmin, async (req, res) => {
     try {
         const rooms = await Room.find().sort({ roomName: 1 });
@@ -229,9 +223,6 @@ router.post('/rooms/send-utility-invoice', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
-// ==================================================
-// ANNOUNCEMENTS
-// ==================================================
 router.get('/announcements', isAdmin, async (req, res) => {
     const { targetFilter } = req.query;
     const announcements = await Announcement.find(targetFilter && targetFilter !== 'All' ? { sendTo: targetFilter } : {}).sort({ createdAt: -1 });
@@ -253,45 +244,129 @@ router.post('/announcements/:id/delete', isAdmin, async (req, res) => {
     res.redirect('/admin/announcements');
 });
 
-// ==================================================
-// TENANTS, PAST TENANTS, AND SPECIFIC HISTORY
-// ==================================================
 router.get('/tenants', isAdmin, async (req, res) => {
+    const { search, sortOrder } = req.query;
     const activeProfiles = await Tenant.find({ isArchived: false }).populate('user').populate('room');
-    const tenants = activeProfiles.map(t => ({
-        id: t._id, 
-        userId: t.user ? t.user._id : null,
-        user: t.user || { firstName: 'Incomplete', lastName: 'Record' },
-        roomName: t.room ? t.room.roomName.replace('Room ', '') : 'N/A',
-        contactNo: t.contactNo, status: t.status
+    
+    let tenants = await Promise.all(activeProfiles.map(async (t) => {
+        const app = await RentApplication.findOne({ user: t.user?._id }).sort({ createdAt: -1 });
+        return {
+            id: t._id, 
+            userId: t.user ? t.user._id : null,
+            user: t.user || { firstName: 'Incomplete', lastName: 'Record', emailAddress: 'N/A' },
+            roomName: t.room ? t.room.roomName.replace('Room ', '') : 'N/A',
+            contactNo: t.contactNo, 
+            status: t.status,
+            gender: t.gender,
+            documents: app ? app.documents : null,
+            createdAt: t.createdAt
+        };
     }));
-    res.render('admin/tenants', { tenants });
+
+    if (search) {
+        const s = search.toLowerCase();
+        tenants = tenants.filter(t => t.user.firstName.toLowerCase().includes(s) || t.user.lastName.toLowerCase().includes(s) || t.roomName.toLowerCase().includes(s));
+    }
+
+    if (sortOrder === 'asc' || sortOrder === 'desc') {
+        tenants.sort((a, b) => {
+            const nameA = a.user.firstName.toLowerCase();
+            const nameB = b.user.firstName.toLowerCase();
+            return sortOrder === 'desc' ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
+        });
+    } else {
+        tenants.sort((a, b) => a.roomName.localeCompare(b.roomName, undefined, { numeric: true, sensitivity: 'base' }));
+    }
+
+    res.render('admin/tenants', { tenants, search, sortOrder });
 });
 
+// CORE FIX: Handles direct eviction wiping OR authorized move-out finalizations precisely.
 router.post('/tenants/:id/archive', isAdmin, async (req, res) => {
-    const tenant = await Tenant.findById(req.params.id);
+    const tenant = await Tenant.findById(req.params.id).populate('room');
     if (tenant) {
-        if (tenant.room) await Room.findByIdAndUpdate(tenant.room, { isAvailable: true, currentTenant: null });
-        tenant.isArchived = true; tenant.status = 'Archived'; tenant.room = null;
-        await tenant.save();
+        const { actionType } = req.body;
+        
+        if (actionType === 'finalize' || actionType === 'evict') {
+            // Unlocks room for next user and moves profile to historical cache securely
+            if (tenant.room) await Room.findByIdAndUpdate(tenant.room._id, { isAvailable: true, currentTenant: null });
+            tenant.isArchived = true;
+            tenant.status = 'Archived';
+            tenant.room = null;
+            await tenant.save();
+
+            // Strips active tenancy dashboard by archiving the foundational root application completely
+            await RentApplication.findOneAndUpdate(
+                { user: tenant.user, status: { $in: ['accepted', 'pending', 'active'] } },
+                { status: 'archived' },
+                { sort: { createdAt: -1 } }
+            );
+
+            const alertTitle = actionType === 'evict' ? "Eviction Processed 🚫" : "Tenancy Concluded 🏠";
+            const alertBody = actionType === 'evict' 
+                ? "Your tenancy has been terminated by the administration. Your account records have been archived and your room has been vacated."
+                : "Your move-out clearance period has concluded. Your account records have been successfully archived. Thank you.";
+
+            await new Announcement({
+                title: alertTitle,
+                body: alertBody,
+                tag: 'General', sendTo: 'Specific', targetUser: tenant.user, status: 'sent'
+            }).save();
+        } else if (actionType === 'moveout') {
+            // Allows them to naturally stay until the expiration of the cycle without being locked out instantly
+            tenant.status = 'Final Term Active';
+            await tenant.save();
+
+            await new Announcement({
+                title: "Move-Out Approved by Admin 📋",
+                body: "Your move-out request has been reviewed and confirmed by management. You are registered as active until your final billing due date.",
+                tag: 'General', sendTo: 'Specific', targetUser: tenant.user, status: 'sent'
+            }).save();
+        }
     }
     res.redirect('/admin/tenants');
 });
 
 router.get('/past-tenants', isAdmin, async (req, res) => {
+    const { search, timeframe, filterYear, filterMonth, sortOrder } = req.query;
     const archivedProfiles = await Tenant.find({ isArchived: true }).populate('user');
-    const pastTenants = await Promise.all(archivedProfiles.map(async (t) => {
-        const userHistory = await Transaction.find({ user: t.user._id, status: 'completed' });
+    
+    let pastTenants = await Promise.all(archivedProfiles.map(async (t) => {
+        const userHistory = await Transaction.find({ user: t.user?._id, status: 'completed' });
         const totalPaid = userHistory.reduce((sum, tx) => sum + tx.amount, 0);
+        const app = await RentApplication.findOne({ user: t.user?._id }).sort({ createdAt: -1 });
         return { 
             userId: t.user ? t.user._id : null,
-            user: t.user || { firstName: 'Deleted', lastName: 'User' }, 
+            user: t.user || { firstName: 'Deleted', lastName: 'User', emailAddress: 'N/A' }, 
             contactNo: t.contactNo.split("EXT:")[0].trim(), 
             totalPaid: totalPaid, 
-            archivedDate: t.createdAt.toLocaleDateString() 
+            archivedDate: t.updatedAt.toLocaleDateString(),
+            dateObj: t.updatedAt,
+            documents: app ? app.documents : null
         };
     }));
-    res.render('admin/pastTenants', { pastTenants });
+
+    if (search) {
+        const s = search.toLowerCase();
+        pastTenants = pastTenants.filter(t => t.user.firstName.toLowerCase().includes(s) || t.user.lastName.toLowerCase().includes(s));
+    }
+    
+    if (timeframe === 'year' && filterYear) {
+        pastTenants = pastTenants.filter(t => new Date(t.dateObj).getFullYear() == filterYear);
+    } else if (timeframe === 'month' && filterYear && filterMonth) {
+        pastTenants = pastTenants.filter(t => {
+            let d = new Date(t.dateObj);
+            return d.getFullYear() == filterYear && (d.getMonth() + 1) == filterMonth;
+        });
+    }
+
+    pastTenants.sort((a, b) => {
+        const nameA = a.user.firstName.toLowerCase();
+        const nameB = b.user.firstName.toLowerCase();
+        return sortOrder === 'desc' ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
+    });
+
+    res.render('admin/pastTenants', { pastTenants, search, timeframe, filterYear, filterMonth, sortOrder });
 });
 
 router.get('/tenants/:userId/history', isAdmin, async (req, res) => {
@@ -314,9 +389,6 @@ router.get('/tenants/:userId/history', isAdmin, async (req, res) => {
     } catch (err) { res.status(500).send('Error'); }
 });
 
-// ==================================================
-// APPLICATIONS
-// ==================================================
 router.get('/applications', isAdmin, async (req, res) => {
     const applications = await RentApplication.find({ status: 'pending' }).sort({ createdAt: -1 });
     res.render('admin/applications', { applications });
