@@ -8,15 +8,36 @@
 
         <main class="flex-1 overflow-y-auto p-6 md:p-8">
             <div class="max-w-7xl mx-auto space-y-6">
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 class="text-sm font-bold text-slate-800 m-0 shrink-0"><i class="fa-solid fa-filter text-indigo-500 mr-2"></i>Directory Filters</h3>
+                    
+                    <form action="/admin/tenants" method="GET" class="flex items-center justify-end gap-3 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" name="search" value="<%= typeof search !== 'undefined' ? search : '' %>" placeholder="Search name or room..." class="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 outline-none font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500" />
+                        </div>
+
+                        <select name="sortOrder" onchange="this.form.submit()" class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                            <option value="default" <%= typeof sortOrder === 'undefined' || sortOrder === 'default' ? 'selected' : '' %>>Default (Room Order)</option>
+                            <option value="asc" <%= typeof sortOrder !== 'undefined' && sortOrder === 'asc' ? 'selected' : '' %>>Name: A - Z</option>
+                            <option value="desc" <%= typeof sortOrder !== 'undefined' && sortOrder === 'desc' ? 'selected' : '' %>>Name: Z - A</option>
+                        </select>
+                        
+                        <button type="submit" class="bg-indigo-600 text-white font-bold px-5 py-2 rounded-lg text-sm shadow-sm cursor-pointer border-0 hover:bg-indigo-700 transition-colors hidden sm:block">Search</button>
+                    </form>
+                </div>
+
                 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     <table class="w-full text-sm text-left border-collapse">
                         <thead class="bg-slate-100/75 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <tr>
                                 <th class="py-4 px-6">Occupant Name</th>
-                                <th class="py-4 px-6">Credentials</th>
-                                <th class="py-4 px-6">Gender</th>
+                                <th class="py-4 px-6">Email Address</th>
+                                <th class="py-4 px-6">Verification Documents</th>
                                 <th class="py-4 px-6">Assigned Unit</th>
                                 <th class="py-4 px-6">Contact Number</th>
+                                <th class="py-4 px-6">Tenancy State</th>
                                 <th class="py-4 px-6 text-center">Operational Actions</th>
                             </tr>
                         </thead>
@@ -25,23 +46,55 @@
                                 <tr class="hover:bg-slate-50/50 transition-colors">
                                     <td class="py-4 px-6 font-semibold text-slate-800">
                                         <%= t.user.firstName %> <%= t.user.lastName %>
-                                        <div class="text-[10px] text-slate-400 font-normal"><%= t.user.emailAddress %></div>
+                                        <div class="text-[10px] font-bold text-slate-400 font-sans mt-0.5 uppercase"><%= t.gender || 'Other' %></div>
                                     </td>
-                                    <!-- Integrated Document Access links -->
+                                    <td class="py-4 px-6 text-slate-600 font-medium"><%= t.user.emailAddress %></td>
+                                    
                                     <td class="py-4 px-6">
-                                        <div class="flex gap-2">
-                                            <a href="/uploads/applications/<%= t.idFront %>" target="_blank" class="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold hover:bg-indigo-100 no-underline">ID</a>
-                                            <a href="/uploads/applications/<%= t.nbi %>" target="_blank" class="text-[10px] bg-rose-50 text-rose-700 px-2 py-1 rounded font-bold hover:bg-rose-100 no-underline">NBI</a>
-                                        </div>
+                                        <% if (t.documents) { %>
+                                            <div class="flex items-center gap-1.5">
+                                                <button type="button" onclick="openDocPreview('/<%= t.documents.validIdFrontPath %>', 'image')" class="text-[10px] bg-indigo-50 hover:bg-indigo-100 border-0 px-2 py-1.5 rounded font-black text-indigo-700 cursor-pointer transition-colors">ID Front</button>
+                                                <button type="button" onclick="openDocPreview('/<%= t.documents.validIdBackPath %>', 'image')" class="text-[10px] bg-indigo-50 hover:bg-indigo-100 border-0 px-2 py-1.5 rounded font-black text-indigo-700 cursor-pointer transition-colors">ID Back</button>
+                                                <% if (t.documents.nbiClearancePath.toLowerCase().endsWith('.pdf')) { %>
+                                                    <button type="button" onclick="openDocPreview('/<%= t.documents.nbiClearancePath %>', 'pdf')" class="text-[10px] bg-rose-50 hover:bg-rose-100 border-0 px-2 py-1.5 rounded font-black text-rose-700 cursor-pointer transition-colors">NBI PDF</button>
+                                                <% } else { %>
+                                                    <button type="button" onclick="openDocPreview('/<%= t.documents.nbiClearancePath %>', 'image')" class="text-[10px] bg-rose-50 hover:bg-rose-100 border-0 px-2 py-1.5 rounded font-black text-rose-700 cursor-pointer transition-colors">NBI img</button>
+                                                <% } %>
+                                            </div>
+                                        <% } else { %>
+                                            <span class="text-xs text-slate-400 italic">No Uploads Found</span>
+                                        <% } %>
                                     </td>
-                                    <td class="py-4 px-6 text-xs text-slate-500 font-medium"><%= t.gender || 'Not Specified' %></td>
+
                                     <td class="py-4 px-6 font-bold text-indigo-600">Room <%= t.roomName %></td>
                                     <td class="py-4 px-6 text-slate-700 font-mono font-bold">+63 <%= t.contactNo.split("EXT:")[0].trim() %></td>
+                                    
+                                    <td class="py-4 px-6">
+                                        <% if (t.status === 'Pending Moveout') { %>
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-rose-100 text-rose-700 border border-rose-200 animate-pulse">
+                                                <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Pending Moveout
+                                            </span>
+                                        <% } else if (t.status === 'Final Term Active') { %>
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                                <i class="fa-solid fa-clock mr-1.5"></i> Final Term Active
+                                            </span>
+                                        <% } else { %>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">
+                                                <%= t.status %>
+                                            </span>
+                                        <% } %>
+                                    </td>
+
                                     <td class="py-4 px-6 flex items-center justify-center gap-2">
                                         <a href="/admin/tenants/<%= t.userId %>/history" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg no-underline transition-all"><i class="fa-solid fa-receipt mr-1"></i>Ledger</a>
-                                        <form action="/admin/tenants/<%= t.id %>/archive" method="POST" class="m-0 inline-block" onsubmit="return confirm('Archive this tenant?');">
-                                            <button type="submit" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-all"><i class="fa-solid fa-box-archive mr-1"></i>Evict</button>
-                                        </form>
+                                        
+                                        <% if (t.status === 'Pending Moveout') { %>
+                                            <button type="button" onclick="openArchiveModal('<%= t.id %>', '<%= t.user.firstName %> <%= t.user.lastName %>', 'moveout')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-all"><i class="fa-solid fa-check-double mr-1"></i>Confirm Move-out</button>
+                                        <% } else if (t.status === 'Final Term Active') { %>
+                                            <button type="button" onclick="openArchiveModal('<%= t.id %>', '<%= t.user.firstName %> <%= t.user.lastName %>', 'finalize')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-all"><i class="fa-solid fa-flag-checkered mr-1"></i>Finalize Checkout</button>
+                                        <% } else { %>
+                                            <button type="button" onclick="openArchiveModal('<%= t.id %>', '<%= t.user.firstName %> <%= t.user.lastName %>', 'evict')" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-all"><i class="fa-solid fa-box-archive mr-1"></i>Evict</button>
+                                        <% } %>
                                     </td>
                                 </tr>
                             <% }); %>
@@ -52,4 +105,87 @@
         </main>
     </div>
 </div>
+
+<div id="viewer-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all">
+    <div class="bg-white w-full max-w-4xl rounded-3xl border border-slate-100 shadow-2xl p-6 md:p-8 text-left relative h-[85vh] flex flex-col">
+        <button type="button" onclick="closeDocPreview()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="text-lg font-bold text-[#3b4276] m-0 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2"><i class="fa-solid fa-file-shield text-indigo-500"></i>Document Inspection Viewer</h3>
+        <div class="flex-grow w-full bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center relative min-h-0">
+            <img id="preview-image-canvas" class="hidden max-w-full max-h-full object-contain" src="" alt="Document Copy" />
+            <embed id="preview-pdf-canvas" class="hidden w-full h-full border-0" src="" type="application/pdf" />
+        </div>
+        <div class="pt-4 border-t border-slate-100 flex justify-end">
+            <button type="button" onclick="closeDocPreview()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all">Close Viewer</button>
+        </div>
+    </div>
+</div>
+
+<div id="archive-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all">
+    <div class="bg-white w-full max-w-md rounded-3xl border border-slate-100 shadow-2xl p-6 md:p-8 text-left relative">
+        <button type="button" onclick="closeArchiveModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg"><i class="fa-solid fa-xmark"></i></button>
+        
+        <h3 id="archive-modal-title" class="text-lg font-bold text-slate-800 m-0 mb-2 flex items-center gap-2">Confirm Tenancy Action</h3>
+        <p id="archive-modal-desc" class="text-sm text-slate-500 m-0 mb-6 leading-relaxed">Processing request for <strong id="archive-tenant-name" class="text-slate-700"></strong>.</p>
+        
+        <form id="archive-form" method="POST" class="flex gap-3 pt-2 m-0">
+            <input type="hidden" name="actionType" id="action-type-input" value="" />
+            <button type="button" onclick="closeArchiveModal()" class="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border-0 cursor-pointer transition-colors">Cancel</button>
+            <button type="submit" id="archive-submit-btn" class="flex-1 px-4 py-2.5 font-bold rounded-xl border-0 cursor-pointer shadow-sm transition-colors text-white">Execute</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openDocPreview(filePath, fileType) {
+        const modal = document.getElementById('viewer-modal');
+        const imgCanvas = document.getElementById('preview-image-canvas');
+        const pdfCanvas = document.getElementById('preview-pdf-canvas');
+        imgCanvas.classList.add('hidden'); pdfCanvas.classList.add('hidden');
+        imgCanvas.src = ''; pdfCanvas.src = '';
+        if (fileType === 'pdf') { pdfCanvas.src = filePath; pdfCanvas.classList.remove('hidden'); }
+        else { imgCanvas.src = filePath; imgCanvas.classList.remove('hidden'); }
+        modal.classList.remove('hidden');
+    }
+    function closeDocPreview() { document.getElementById('viewer-modal').classList.add('hidden'); }
+    
+    function openArchiveModal(tenantId, tenantName, actionType) {
+        document.getElementById('archive-form').action = '/admin/tenants/' + tenantId + '/archive';
+        document.getElementById('archive-tenant-name').textContent = tenantName;
+        document.getElementById('action-type-input').value = actionType;
+        
+        const titleEl = document.getElementById('archive-modal-title');
+        const descEl = document.getElementById('archive-modal-desc');
+        const btnEl = document.getElementById('archive-submit-btn');
+
+        if (actionType === 'moveout') {
+            titleEl.innerHTML = '<i class="fa-solid fa-check-double text-emerald-500"></i>Approve Move-out Request';
+            descEl.innerHTML = 'You are confirming the move-out notice for <strong class="text-slate-700">' + tenantName + '</strong>. They will remain visible as an active tenant on their final term until their last day.';
+            btnEl.className = 'flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer shadow-sm transition-colors';
+            btnEl.textContent = 'Confirm Final Term';
+        } else if (actionType === 'finalize') {
+            titleEl.innerHTML = '<i class="fa-solid fa-flag-checkered text-indigo-500"></i>Finalize Checkout & Archive';
+            descEl.innerHTML = 'The final term has concluded for <strong class="text-slate-700">' + tenantName + '</strong>. Proceeding will officially archive their record, move them to past tenants, and make the room vacant.';
+            btnEl.className = 'flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer shadow-sm transition-colors';
+            btnEl.textContent = 'Complete Checkout';
+        } else {
+            titleEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-500"></i>Confirm Immediate Eviction';
+            descEl.innerHTML = 'You are about to evict <strong class="text-slate-700">' + tenantName + '</strong> immediately. This will bypass the final term and archive their records right away.';
+            btnEl.className = 'flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer shadow-sm transition-colors';
+            btnEl.textContent = 'Evict Tenant';
+        }
+
+        document.getElementById('archive-modal').classList.remove('hidden');
+    }
+
+    function closeArchiveModal() {
+        document.getElementById('archive-modal').classList.add('hidden');
+    }
+
+    window.addEventListener('click', function(event) {
+        const docModal = document.getElementById('viewer-modal');
+        const arcModal = document.getElementById('archive-modal');
+        if (event.target === docModal) closeDocPreview();
+        if (event.target === arcModal) closeArchiveModal();
+    });
+</script>
 <%- include('../partials/footer') %>

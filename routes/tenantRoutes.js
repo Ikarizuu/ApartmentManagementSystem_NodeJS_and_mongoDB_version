@@ -25,10 +25,9 @@ const isTenant = (req, res, next) => {
     next();
 };
 
-// Core Mathematical Engine for Dynamic Rent Limits
 async function getTenantBillingContext(userId) {
     const application = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
-    const activeTenant = await Tenant.findOne({ user: userId });
+    const activeTenant = await Tenant.findOne({ user: userId, isArchived: false });
     
     const allRentPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'completed' }).sort({ createdAt: 1 });
     const pendingPayments = await Transaction.find({ user: userId, type: { $in: ['deposit', 'rent'] }, status: 'pending' });
@@ -85,7 +84,17 @@ async function getTenantBillingContext(userId) {
 
     const showRedPing = canPayRent || hasPendingUtilities;
 
-    return { application, activeTenant, totalPaidMonths, contractMaxMonths, rentDueDateLabel, currentCycleStart, canPayRent, rentLockReason, utilityBills, showRedPing };
+    let baseEnd = new Date(startD.getFullYear(), startD.getMonth() + contractMaxMonths, 1);
+    let validExtensions = [];
+    for (let i = 1; i <= 6; i++) {
+        let d = new Date(baseEnd.getFullYear(), baseEnd.getMonth() + i, 1);
+        validExtensions.push({
+            val: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+            label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        });
+    }
+
+    return { application, activeTenant, totalPaidMonths, contractMaxMonths, rentDueDateLabel, currentCycleStart, canPayRent, rentLockReason, utilityBills, showRedPing, validExtensions };
 }
 
 // ==================================================
@@ -141,7 +150,8 @@ router.get('/notifications/archived', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const userDoc = await User.findById(userId);
     const archivedAnnouncements = await Announcement.find({ _id: { $in: userDoc.clearedAnnouncements || [] } }).sort({ createdAt: -1 });
-    res.render('archivedNotifications', { archivedAnnouncements, hasRentedRoom: !!(await RentApplication.findOne({ user: userId })), user: req.session.user });
+    const hasRentedRoom = !!(await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'pending', 'active'] } }));
+    res.render('archivedNotifications', { archivedAnnouncements, hasRentedRoom, user: req.session.user });
 });
 
 // ==================================================
@@ -149,9 +159,9 @@ router.get('/notifications/archived', isTenant, async (req, res) => {
 // ==================================================
 router.get('/transaction-history', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
-    if (!(await Tenant.findOne({ user: userId }))) return res.redirect('/home');
     const transactions = await Transaction.find({ user: userId }).sort({ createdAt: -1 });
-    res.render('transactionHistory', { transactions, hasRentedRoom: !!(await RentApplication.findOne({ user: userId })), user: req.session.user });
+    const hasRentedRoom = !!(await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'pending', 'active'] } }));
+    res.render('transactionHistory', { transactions, hasRentedRoom, user: req.session.user });
 });
 
 // ==================================================
@@ -165,12 +175,16 @@ router.get('/home', isTenant, async (req, res) => {
 });
 
 router.get('/preview', isTenant, async (req, res) => {
+    const userId = req.session.user._id || req.session.user.id;
     const rooms = await Room.find({ isAvailable: true }).sort({ roomName: 1 });
-    res.render('preview', { rooms, hasRentedRoom: !!(await RentApplication.findOne({ user: req.session.user._id || req.session.user.id })), user: req.session.user });
+    const hasRentedRoom = !!(await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'pending', 'active'] } }));
+    res.render('preview', { rooms, hasRentedRoom, user: req.session.user });
 });
 
 router.get('/rent-application', isTenant, async (req, res) => {
-    if (await RentApplication.findOne({ user: req.session.user._id || req.session.user.id })) return res.redirect('/my-room');
+    const userId = req.session.user._id || req.session.user.id;
+    const existingApp = await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'pending', 'active'] } });
+    if (existingApp) return res.redirect('/my-room');
     res.render('rentApplication', { roomSelection: req.query.room || 'Room A', user: req.session.user, hasRentedRoom: false });
 });
 
@@ -187,15 +201,21 @@ router.post('/rent-application', isTenant, upload.fields([{ name: 'validIdFrontF
 router.get('/my-room', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const ctx = await getTenantBillingContext(userId);
-    if (!ctx.application) return res.redirect('/preview');
+    
+    // Automatically evict access securely if the application status marks as concluded/archived or missing
+    if (!ctx.application || ctx.application.status === 'archived' || ctx.application.status === 'rejected') {
+        return res.redirect('/preview');
+    }
 
     res.render('myRoom', { 
-        application: ctx.application, hasRentedRoom: true, user: req.session.user,
+        application: ctx.application, 
+        activeTenant: ctx.activeTenant,
+        hasRentedRoom: true, user: req.session.user,
         isPaid: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'completed' })),
         isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true })),
         currentCycleStart: ctx.currentCycleStart, rentDueDateLabel: ctx.rentDueDateLabel,
         totalPaidMonths: ctx.totalPaidMonths, contractMaxMonths: ctx.contractMaxMonths,
-        showRedPing: ctx.showRedPing
+        showRedPing: ctx.showRedPing, validExtensions: ctx.validExtensions
     });
 });
 
@@ -226,7 +246,7 @@ router.get('/view-contract', isTenant, async (req, res) => {
 });
 
 router.post('/extend-lease', isTenant, async (req, res) => {
-    const tenantProfile = await Tenant.findOne({ user: req.session.user._id || req.session.user.id });
+    const tenantProfile = await Tenant.findOne({ user: req.session.user._id || req.session.user.id, isArchived: false });
     if (tenantProfile) {
         tenantProfile.contactNo = `${tenantProfile.contactNo.split("EXT:")[0].trim()} EXT:${req.body.extendEndMonth}`;
         await tenantProfile.save();
@@ -235,14 +255,14 @@ router.post('/extend-lease', isTenant, async (req, res) => {
 });
 
 router.post('/terminate-lease', isTenant, async (req, res) => {
-    await Tenant.findOneAndUpdate({ user: req.session.user._id || req.session.user.id }, { status: 'Pending Moveout' });
+    await Tenant.findOneAndUpdate({ user: req.session.user._id || req.session.user.id, isArchived: false }, { status: 'Pending Moveout' });
     res.redirect('/my-room');
 });
 
 router.get('/pay-bills', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const ctx = await getTenantBillingContext(userId);
-    if (!ctx.application) return res.redirect('/home');
+    if (!ctx.application || ctx.application.status === 'archived' || ctx.application.status === 'rejected') return res.redirect('/home');
 
     const baseRent = ctx.application.roomRequested.match(/Room [I-N]/) ? 3500 : 4000;
     const actualBaseRent = ctx.canPayRent ? baseRent : 0;
@@ -251,7 +271,9 @@ router.get('/pay-bills', isTenant, async (req, res) => {
     const isWaitingUtilityConfirmation = !!(await Transaction.findOne({ user: userId, type: 'utilities', status: 'pending', tenantPaid: true }));
 
     res.render('payBills', { 
-        application: ctx.application, actualBaseRent, canPayRent: ctx.canPayRent, rentLockReason: ctx.rentLockReason, 
+        application: ctx.application, 
+        activeTenant: ctx.activeTenant,
+        actualBaseRent, canPayRent: ctx.canPayRent, rentLockReason: ctx.rentLockReason, 
         isFullyBoarded: !!ctx.activeTenant, hasRentedRoom: true, user: req.session.user, 
         isWaitingConfirmation: !!(await Transaction.findOne({ user: userId, type: 'deposit', status: 'pending', tenantPaid: true })),
         isWaitingRentConfirmation,
@@ -272,7 +294,6 @@ router.post('/pay-bills', isTenant, async (req, res) => {
     
     const calculatedStatus = paymentMethod === 'cash' ? 'pending' : 'completed';
 
-    // 1. Process utility billing if active
     if (utilsTotal > 0 && inputAmount >= utilsTotal) {
         await new Transaction({
             user: userId, roomName: application.roomRequested, amount: utilsTotal,
@@ -285,7 +306,6 @@ router.post('/pay-bills', isTenant, async (req, res) => {
                 { $set: { "utilities.isBilled": false } }
             );
             
-            // Dispatches instant notification feed item for digital completions
             await new Announcement({
                 title: "Utility Payment Successful! 🎉",
                 body: `Your utility parameter payment of ₱${utilsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} has been captured and validated seamlessly via ${paymentMethod.toUpperCase()}.`,
@@ -295,7 +315,6 @@ router.post('/pay-bills', isTenant, async (req, res) => {
         inputAmount -= utilsTotal;
     }
 
-    // 2. Process any remaining amount toward rent or down payment
     if (inputAmount > 0) {
         const activeTenant = await Tenant.findOne({ user: userId });
         const targetType = activeTenant ? 'rent' : 'deposit';
@@ -338,15 +357,14 @@ router.post('/pay-bills', isTenant, async (req, res) => {
     return res.json({ status: calculatedStatus, amount, method: paymentMethod });
 });
 
-// FIXED: /profile-settings target routing node linked completely
 router.get('/profile-settings', isTenant, async (req, res) => {
     const userId = req.session.user._id || req.session.user.id;
     const dbUser = await User.findById(userId);
-    const tenantData = await Tenant.findOne({ user: userId });
+    const tenantData = await Tenant.findOne({ user: userId, isArchived: false });
     const appData = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
     
-    // Evaluates if the user is an active room occupant or just a baseline applicant
     const isRealTenant = !!tenantData;
+    const hasRentedRoom = !!(await RentApplication.findOne({ user: userId, status: { $in: ['accepted', 'pending', 'active'] } }));
 
     res.render('profileSettings', { 
         dbUser: { 
@@ -359,7 +377,7 @@ router.get('/profile-settings', isTenant, async (req, res) => {
         isRealTenant,
         successMessage: null, 
         errorMessage: null, 
-        hasRentedRoom: !!appData, 
+        hasRentedRoom, 
         user: req.session.user 
     });
 });
@@ -372,7 +390,7 @@ router.post('/profile-settings/update', isTenant, async (req, res) => {
     req.session.user.first_name = updatedUser.firstName; 
     req.session.user.last_name = updatedUser.lastName;
     
-    const tenantData = await Tenant.findOne({ user: userId });
+    const tenantData = await Tenant.findOne({ user: userId, isArchived: false });
     if (tenantData) {
         tenantData.contactNo = contactNo.trim() + (tenantData.contactNo.includes("EXT:") ? " EXT:" + tenantData.contactNo.split("EXT:")[1] : "");
         tenantData.suffix = suffix.trim(); 

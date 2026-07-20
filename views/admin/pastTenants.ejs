@@ -8,14 +8,62 @@
 
         <main class="flex-1 overflow-y-auto p-6 md:p-8">
             <div class="max-w-7xl mx-auto space-y-6">
+
+                <!-- Advanced Ledger Filtering Dashboard Form -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 class="text-sm font-bold text-slate-800 m-0 shrink-0"><i class="fa-solid fa-filter text-indigo-500 mr-2"></i>Archive Filters</h3>
+                    
+                    <form action="/admin/past-tenants" method="GET" class="flex flex-wrap items-center justify-end gap-3 w-full">
+                        <div class="relative w-full sm:w-56">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" name="search" value="<%= typeof search !== 'undefined' ? search : '' %>" placeholder="Search name..." class="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 outline-none font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500" />
+                        </div>
+
+                        <select name="sortOrder" class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                            <option value="asc" <%= typeof sortOrder !== 'undefined' && sortOrder === 'asc' ? 'selected' : '' %>>A - Z</option>
+                            <option value="desc" <%= typeof sortOrder !== 'undefined' && sortOrder === 'desc' ? 'selected' : '' %>>Z - A</option>
+                        </select>
+
+                        <select name="timeframe" id="ledgerTimeframe" onchange="toggleLedgerInputs()" class="text-sm bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none font-semibold text-slate-700 cursor-pointer focus:ring-2 focus:ring-indigo-500">
+                            <option value="overall" <%= typeof timeframe === 'undefined' || timeframe === 'overall' ? 'selected' : '' %>>All Time Setup</option>
+                            <option value="year" <%= typeof timeframe !== 'undefined' && timeframe === 'year' ? 'selected' : '' %>>Filter Year</option>
+                            <option value="month" <%= typeof timeframe !== 'undefined' && timeframe === 'month' ? 'selected' : '' %>>Filter Month</option>
+                        </select>
+                        
+                        <div id="ledgerYearGroup" class="relative hidden">
+                            <input type="number" id="ledgerYear" value="<%= (typeof filterYear !== 'undefined' && filterYear) ? filterYear : new Date().getFullYear() %>" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 w-24 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700" placeholder="YYYY" />
+                        </div>
+                        
+                        <div id="ledgerMonthGroup" class="relative hidden">
+                            <select id="ledgerMonth" class="text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 cursor-pointer">
+                                <option value="01" <%= (typeof filterMonth !== 'undefined' && filterMonth === '01') ? 'selected' : '' %>>Jan</option>
+                                <option value="02" <%= (typeof filterMonth !== 'undefined' && filterMonth === '02') ? 'selected' : '' %>>Feb</option>
+                                <option value="03" <%= (typeof filterMonth !== 'undefined' && filterMonth === '03') ? 'selected' : '' %>>Mar</option>
+                                <option value="04" <%= (typeof filterMonth !== 'undefined' && filterMonth === '04') ? 'selected' : '' %>>Apr</option>
+                                <option value="05" <%= (typeof filterMonth !== 'undefined' && filterMonth === '05') ? 'selected' : '' %>>May</option>
+                                <option value="06" <%= (typeof filterMonth !== 'undefined' && filterMonth === '06') ? 'selected' : '' %>>Jun</option>
+                                <option value="07" <%= (typeof filterMonth !== 'undefined' && filterMonth === '07') ? 'selected' : '' %>>Jul</option>
+                                <option value="08" <%= (typeof filterMonth !== 'undefined' && filterMonth === '08') ? 'selected' : '' %>>Aug</option>
+                                <option value="09" <%= (typeof filterMonth !== 'undefined' && filterMonth === '09') ? 'selected' : '' %>>Sep</option>
+                                <option value="10" <%= (typeof filterMonth !== 'undefined' && filterMonth === '10') ? 'selected' : '' %>>Oct</option>
+                                <option value="11" <%= (typeof filterMonth !== 'undefined' && filterMonth === '11') ? 'selected' : '' %>>Nov</option>
+                                <option value="12" <%= (typeof filterMonth !== 'undefined' && filterMonth === '12') ? 'selected' : '' %>>Dec</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="bg-indigo-600 text-white font-bold px-5 py-2 rounded-lg text-sm shadow-sm cursor-pointer border-0 hover:bg-indigo-700 transition-colors">Apply Filters</button>
+                    </form>
+                </div>
+
                 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     <table class="w-full text-sm text-left border-collapse">
                         <thead class="bg-slate-100/75 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <tr>
                                 <th class="py-4 px-6">Tenant Name</th>
-                                <th class="py-4 px-6">Credentials Archive</th>
+                                <th class="py-4 px-6">Email Address</th>
+                                <th class="py-4 px-6">Historical Records</th>
                                 <th class="py-4 px-6">Contact Number</th>
-                                <th class="py-4 px-6">Archive Date</th>
+                                <th class="py-4 px-6">Archive Logging Date</th>
                                 <th class="py-4 px-6 text-right">Lifetime Collections</th>
                                 <th class="py-4 px-6 text-center">Historical Actions</th>
                             </tr>
@@ -25,20 +73,31 @@
                                 <tr class="hover:bg-slate-50/50 transition-colors opacity-80 hover:opacity-100">
                                     <td class="py-4 px-6 font-semibold text-slate-700">
                                         <%= pt.user.firstName %> <%= pt.user.lastName %>
-                                        <div class="text-[10px] text-slate-400 font-normal"><%= pt.user.emailAddress %></div>
                                     </td>
+                                    <td class="py-4 px-6 text-slate-500 font-medium"><%= pt.user.emailAddress %></td>
+                                    
                                     <td class="py-4 px-6">
-                                        <div class="flex gap-2">
-                                            <a href="/uploads/applications/<%= pt.idFront %>" target="_blank" class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold hover:bg-slate-200 no-underline">ID</a>
-                                            <a href="/uploads/applications/<%= pt.nbi %>" target="_blank" class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold hover:bg-slate-200 no-underline">NBI</a>
-                                        </div>
+                                        <% if (pt.documents) { %>
+                                            <div class="flex items-center gap-1.5">
+                                                <button type="button" onclick="openDocPreview('/<%= pt.documents.validIdFrontPath %>', 'image')" class="text-[10px] bg-slate-100 hover:bg-slate-200 border-0 px-2 py-1.5 rounded font-black text-slate-600 cursor-pointer transition-colors">ID Front</button>
+                                                <button type="button" onclick="openDocPreview('/<%= pt.documents.validIdBackPath %>', 'image')" class="text-[10px] bg-slate-100 hover:bg-slate-200 border-0 px-2 py-1.5 rounded font-black text-slate-600 cursor-pointer transition-colors">ID Back</button>
+                                                <% if (pt.documents.nbiClearancePath.toLowerCase().endsWith('.pdf')) { %>
+                                                    <button type="button" onclick="openDocPreview('/<%= pt.documents.nbiClearancePath %>', 'pdf')" class="text-[10px] bg-slate-100 hover:bg-slate-200 border-0 px-2 py-1.5 rounded font-black text-slate-600 cursor-pointer transition-colors">NBI PDF</button>
+                                                <% } else { %>
+                                                    <button type="button" onclick="openDocPreview('/<%= pt.documents.nbiClearancePath %>', 'image')" class="text-[10px] bg-slate-100 hover:bg-slate-200 border-0 px-2 py-1.5 rounded font-black text-slate-600 cursor-pointer transition-colors">NBI Img</button>
+                                                <% } %>
+                                            </div>
+                                        <% } else { %>
+                                            <span class="text-xs text-slate-400 italic">No Uploads Found</span>
+                                        <% } %>
                                     </td>
-                                    <td class="py-4 px-6 text-slate-600 font-mono">+63 <%= pt.contactNo %></td>
+
+                                    <td class="py-4 px-6 text-slate-600 font-mono font-bold">+63 <%= pt.contactNo %></td>
                                     <td class="py-4 px-6 text-slate-400 text-xs font-mono"><%= pt.archivedDate %></td>
                                     <td class="py-4 px-6 text-right font-black text-indigo-600">₱<%= pt.totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 }) %></td>
                                     <td class="py-4 px-6 text-center">
                                         <a href="/admin/tenants/<%= pt.userId %>/history" class="inline-flex bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg no-underline transition-all">
-                                            <i class="fa-solid fa-clock-rotate-left mr-1"></i>Audit Log
+                                            <i class="fa-solid fa-clock-rotate-left mr-1"></i>Audit Invoices Log
                                         </a>
                                     </td>
                                 </tr>
@@ -50,4 +109,49 @@
         </main>
     </div>
 </div>
+
+<div id="viewer-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all">
+    <div class="bg-white w-full max-w-4xl rounded-3xl border border-slate-100 shadow-2xl p-6 md:p-8 text-left relative h-[85vh] flex flex-col">
+        <button type="button" onclick="closeDocPreview()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer text-lg"><i class="fa-solid fa-xmark"></i></button>
+        <h3 class="text-lg font-bold text-[#3b4276] m-0 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2"><i class="fa-solid fa-file-shield text-indigo-500"></i>Document Inspection Viewer</h3>
+        <div class="flex-grow w-full bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center relative min-h-0">
+            <img id="preview-image-canvas" class="hidden max-w-full max-h-full object-contain" src="" alt="Document Copy" />
+            <embed id="preview-pdf-canvas" class="hidden w-full h-full border-0" src="" type="application/pdf" />
+        </div>
+        <div class="pt-4 border-t border-slate-100 flex justify-end">
+            <button type="button" onclick="closeDocPreview()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-6 py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all">Close Viewer</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleLedgerInputs() {
+        const select = document.getElementById('ledgerTimeframe').value;
+        const yearGroup = document.getElementById('ledgerYearGroup');
+        const monthGroup = document.getElementById('ledgerMonthGroup');
+        const yearInp = document.getElementById('ledgerYear');
+        const monthInp = document.getElementById('ledgerMonth');
+        yearGroup.classList.add('hidden'); monthGroup.classList.add('hidden');
+        yearInp.removeAttribute('name'); monthInp.removeAttribute('name');
+        if (select === 'year') { yearGroup.classList.remove('hidden'); yearInp.setAttribute('name', 'filterYear'); } 
+        else if (select === 'month') { yearGroup.classList.remove('hidden'); monthGroup.classList.remove('hidden'); yearInp.setAttribute('name', 'filterYear'); monthInp.setAttribute('name', 'filterMonth'); }
+    }
+    window.addEventListener('DOMContentLoaded', toggleLedgerInputs);
+
+    function openDocPreview(filePath, fileType) {
+        const modal = document.getElementById('viewer-modal');
+        const imgCanvas = document.getElementById('preview-image-canvas');
+        const pdfCanvas = document.getElementById('preview-pdf-canvas');
+        imgCanvas.classList.add('hidden'); pdfCanvas.classList.add('hidden');
+        imgCanvas.src = ''; pdfCanvas.src = '';
+        if (fileType === 'pdf') { pdfCanvas.src = filePath; pdfCanvas.classList.remove('hidden'); }
+        else { imgCanvas.src = filePath; imgCanvas.classList.remove('hidden'); }
+        modal.classList.remove('hidden');
+    }
+    function closeDocPreview() { document.getElementById('viewer-modal').classList.add('hidden'); }
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('viewer-modal');
+        if (event.target === modal) closeDocPreview();
+    });
+</script>
 <%- include('../partials/footer') %>
