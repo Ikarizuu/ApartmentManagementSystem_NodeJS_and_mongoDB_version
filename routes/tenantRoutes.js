@@ -195,10 +195,25 @@ router.get('/rent-application', isTenant, async (req, res) => {
 
 router.post('/rent-application', isTenant, upload.fields([{ name: 'validIdFrontFile', maxCount: 1 }, { name: 'validIdBackFile', maxCount: 1 }, { name: 'nbiFile', maxCount: 1 }]), async (req, res) => {
     const { firstName, lastName, suffix, gender, contactNo, occupants, monthsOfRent, roomRequested } = req.body;
+    const userId = req.session.user._id || req.session.user.id;
+
+    // Past tenants re-applying may skip re-uploading files that were already on record;
+    // fall back to their most recent past application's stored document paths per-field.
+    const pastApp = await RentApplication.findOne({ user: userId }).sort({ createdAt: -1 });
+    const pastDocs = pastApp ? pastApp.documents : null;
+
+    const validIdFrontPath = req.files['validIdFrontFile'] ? req.files['validIdFrontFile'][0].path.replace(/\\/g, '/') : pastDocs?.validIdFrontPath;
+    const validIdBackPath = req.files['validIdBackFile'] ? req.files['validIdBackFile'][0].path.replace(/\\/g, '/') : pastDocs?.validIdBackPath;
+    const nbiClearancePath = req.files['nbiFile'] ? req.files['nbiFile'][0].path.replace(/\\/g, '/') : pastDocs?.nbiClearancePath;
+
+    if (!validIdFrontPath || !validIdBackPath || !nbiClearancePath) {
+        return res.status(400).send('Missing required document uploads.');
+    }
+
     await new RentApplication({
-        user: req.session.user._id || req.session.user.id,
+        user: userId,
         firstName: firstName.trim(), lastName: lastName.trim(), suffix: suffix.trim(), gender, contactNo: contactNo.trim(), occupants: parseInt(occupants), monthsOfRent: parseInt(monthsOfRent), roomRequested,
-        documents: { validIdFrontPath: req.files['validIdFrontFile'][0].path.replace(/\\/g, '/'), validIdBackPath: req.files['validIdBackFile'][0].path.replace(/\\/g, '/'), nbiClearancePath: req.files['nbiFile'][0].path.replace(/\\/g, '/') }
+        documents: { validIdFrontPath, validIdBackPath, nbiClearancePath }
     }).save();
     res.redirect('/my-room');
 });
